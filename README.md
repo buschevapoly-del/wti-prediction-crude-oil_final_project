@@ -1,10 +1,11 @@
+[README (3).md](https://github.com/user-attachments/files/27573079/README.3.md)
 # WTI Crude Oil 5-Day Direction Forecast — Dashboard
 
-LightGBM classifier with Chain-of-Thought GPT sentiment and Fear & Greed Index features, trained on 2020–2026 WTI data. Walk-forward backtest with non-overlapping trades and transaction costs.
+LightGBM with Chain-of-Thought GPT sentiment + Fear & Greed Index features. Walk-forward backtested on 2020–2026 WTI data.
 
 ## Result Summary
 
-- **Accuracy:** 57.24% across 1,527 predictions 
+- **Accuracy:** 57.24% (random walk baseline: 50.00% — edge: +7.24 pp)
 - **Total return:** +86.13% across 168 trades
 - **Sharpe ratio:** 0.535 (annualized, 5-day horizon)
 
@@ -26,6 +27,4 @@ streamlit run dashboard.py
     └── predictions.csv
 ```
 
-## Methodology
-
-See the **Methodology** tab in the live dashboard for full details on the model architecture, sentiment pipeline, and validation procedure.
+The dashboard fetches recent WTI price data from yfinance at runtime to overlay prediction outcomes.
