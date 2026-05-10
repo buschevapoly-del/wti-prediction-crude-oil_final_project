@@ -29,12 +29,12 @@ st.set_page_config(
 st.markdown("""
 <style>
     .main-header {
-        font-size: 3.6rem;
+        font-size: 4.8rem;
         font-weight: 800;
         color: #0E1117;
-        margin-bottom: 0.3rem;
-        line-height: 1.1;
-        letter-spacing: -0.02em;
+        margin-bottom: 0.4rem;
+        line-height: 1.05;
+        letter-spacing: -0.025em;
     }
     .sub-header {
         font-size: 1.15rem;
