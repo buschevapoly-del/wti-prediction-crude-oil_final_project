@@ -1,0 +1,38 @@
+{
+  "config": "TEST: Price + OVX, 5-model ensemble (no sentiment, no F&G)",
+  "n_optuna_trials": 0,
+  "n_ensemble_models": 5,
+  "best_optuna_params": {
+    "learning_rate": 0.05,
+    "num_leaves": 31,
+    "max_depth": 6,
+    "min_child_samples": 20,
+    "subsample": 0.8,
+    "colsample_bytree": 0.8
+  },
+  "accuracy": 0.5379310344827586,
+  "auc": 0.555,
+  "macro_f1": 0.481,
+  "sharpe": -0.14638996720432826,
+  "total_return": -0.08500099999999995,
+  "up_recall": 0.5921052631578947,
+  "down_recall": 0.4782608695652174,
+  "always_up_baseline": 0.5546,
+  "buy_hold_return": 2.857,
+  "n_features": 9,
+  "feature_breakdown": {
+    "price": 6,
+    "ovx": 3
+  },
+  "n_trades": 145,
+  "n_predictions": 707,
+  "data_start": "2020-05-08",
+  "data_end": "2026-04-30",
+  "horizon_days": 5,
+  "label_threshold": 0.003,
+  "round_trip_fee": 0.002,
+  "confidence_threshold": 0.52,
+  "edge_vs_baseline_pp": -1.6668965517241396,
+  "dai_et_al_benchmark_accuracy": 0.5608,
+  "dai_et_al_benchmark_auc": 0.65
+}

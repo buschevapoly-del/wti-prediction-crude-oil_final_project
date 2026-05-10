@@ -1,0 +1,17 @@
+# Core ML & data
+lightgbm>=4.0
+pandas>=2.0
+numpy>=1.26
+scikit-learn>=1.4
+optuna>=3.4
+
+# Data fetching
+requests>=2.31
+yfinance>=0.2.40
+
+# Dashboard
+streamlit>=1.30
+plotly>=5.18
+
+# Progress bars
+tqdm>=4.66

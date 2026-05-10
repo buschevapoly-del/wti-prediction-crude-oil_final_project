@@ -1,0 +1,53 @@
+# Secrets — NEVER commit these
+.env
+*.env
+secrets.toml
+.streamlit/secrets.toml
+*api_key*
+*api-key*
+
+# Cache files (large, regenerable, may contain raw API data)
+cache/
+*.pkl
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+.venv/
+venv/
+env/
+.ipynb_checkpoints/
+.pytest_cache/
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+
+# Outputs from other experiments (only commit outputs_optuna_ensemble/)
+outputs_ovx_dxy/
+outputs_finbert_llama/
+outputs_optuna_fg/
+outputs/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
