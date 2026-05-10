@@ -461,15 +461,6 @@ with tab2:
     )
     st.plotly_chart(fig, use_container_width=True)
 
-    st.markdown("### Recall by Class")
-    col1, col2 = st.columns(2)
-    with col1:
-        st.metric("Up Recall", f"{meta['up_recall']:.4f}",
-                  "true UPs correctly identified", delta_color="off")
-    with col2:
-        st.metric("Down Recall", f"{meta['down_recall']:.4f}",
-                  "true DOWNs correctly identified", delta_color="off")
-
 # ─────────────────────────────────────────────────────────────────────
 # TAB 3: Methodology
 # ─────────────────────────────────────────────────────────────────────
