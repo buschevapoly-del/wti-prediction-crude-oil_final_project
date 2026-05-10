@@ -2,18 +2,16 @@
 WTI Crude Oil 5-Day Direction Forecast — Dashboard
 ==================================================
 LightGBM + Chain-of-Thought GPT Sentiment + Fear & Greed Index
-Post-2020 walk-forward backtest (2020-01-02 → 2026-05-01)
 """
 
 import json
-from datetime import datetime, timedelta
+from datetime import timedelta
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
-from plotly.subplots import make_subplots
 
 # ─────────────────────────────────────────────────────────────────────
 # Page config
@@ -26,26 +24,23 @@ st.set_page_config(
 )
 
 # ─────────────────────────────────────────────────────────────────────
-# Custom CSS for a more professional look
+# CSS — bigger header
 # ─────────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
     .main-header {
-        font-size: 2.4rem;
-        font-weight: 700;
+        font-size: 3.6rem;
+        font-weight: 800;
         color: #0E1117;
-        margin-bottom: 0.2rem;
+        margin-bottom: 0.3rem;
+        line-height: 1.1;
+        letter-spacing: -0.02em;
     }
     .sub-header {
-        font-size: 1rem;
+        font-size: 1.15rem;
         color: #6B7280;
-        margin-bottom: 2rem;
-    }
-    .metric-card {
-        background: #F9FAFB;
-        padding: 1.2rem;
-        border-radius: 12px;
-        border: 1px solid #E5E7EB;
+        margin-bottom: 2.2rem;
+        font-weight: 400;
     }
     .signal-up {
         background: linear-gradient(135deg, #10B981 0%, #059669 100%);
@@ -90,6 +85,13 @@ st.markdown("""
         font-style: italic;
         margin-top: 0.5rem;
     }
+    .section-header {
+        font-size: 1.5rem;
+        font-weight: 600;
+        color: #0E1117;
+        margin-top: 1rem;
+        margin-bottom: 0.5rem;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -106,6 +108,22 @@ def load_data():
     preds = preds.sort_values("date").reset_index(drop=True)
     return meta, preds
 
+@st.cache_data(ttl=3600)  # cache 1 hour
+def fetch_wti_prices(start_date, end_date):
+    """Fetch WTI prices via yfinance. Returns DataFrame with date and Close."""
+    try:
+        import yfinance as yf
+        ticker = yf.Ticker("CL=F")
+        hist = ticker.history(start=start_date, end=end_date, auto_adjust=False)
+        if hist.empty:
+            return None
+        df = hist[["Close"]].reset_index()
+        df.columns = ["date", "Close"]
+        df["date"] = pd.to_datetime(df["date"]).dt.tz_localize(None)
+        return df
+    except Exception:
+        return None
+
 try:
     meta, preds = load_data()
 except FileNotFoundError:
@@ -113,19 +131,26 @@ except FileNotFoundError:
     st.info("Expected files: `metadata.json` and `predictions.csv`")
     st.stop()
 
+# Random walk 50% baseline used everywhere
+RANDOM_WALK_BASELINE = 0.50
+edge_pp = (meta['accuracy_all_predictions'] - RANDOM_WALK_BASELINE) * 100
+edge_traded_pp = (meta['accuracy_traded'] - RANDOM_WALK_BASELINE) * 100
+
 # ─────────────────────────────────────────────────────────────────────
-# Header
+# HEADER (bigger title)
 # ─────────────────────────────────────────────────────────────────────
-st.markdown('<p class="main-header">🛢️ WTI Crude Oil 5-Day Direction Forecast</p>',
-            unsafe_allow_html=True)
 st.markdown(
-    f'<p class="sub-header">LightGBM + Chain-of-Thought GPT sentiment + Fear & Greed Index '
+    '<p class="main-header">🛢️ WTI Crude Oil 5-Day Direction Forecast</p>',
+    unsafe_allow_html=True
+)
+st.markdown(
+    f'<p class="sub-header">LightGBM with Chain-of-Thought GPT sentiment + Fear & Greed Index '
     f'· Walk-forward backtest {meta["data_start"]} → {meta["data_end"]}</p>',
     unsafe_allow_html=True
 )
 
 # ─────────────────────────────────────────────────────────────────────
-# TOP: Headline KPIs
+# TOP: Headline KPIs (against random walk 50%)
 # ─────────────────────────────────────────────────────────────────────
 col1, col2, col3, col4 = st.columns(4)
 
@@ -133,7 +158,7 @@ with col1:
     st.metric(
         label="Accuracy",
         value=f"{meta['accuracy_all_predictions']*100:.2f}%",
-        delta=f"{meta['edge_vs_baseline_pp']:+.2f} pp vs baseline",
+        delta=f"{edge_pp:+.2f} pp vs random walk",
     )
 
 with col2:
@@ -162,6 +187,186 @@ with col4:
 st.markdown("---")
 
 # ─────────────────────────────────────────────────────────────────────
+# MAIN CHART: WTI Price with prediction outcomes (LAST 3 MONTHS)
+# ─────────────────────────────────────────────────────────────────────
+st.markdown(
+    '<p class="section-header">📈 WTI Price with Prediction Outcomes — Last 3 Months</p>',
+    unsafe_allow_html=True
+)
+st.caption(
+    "Each dot represents one model prediction overlaid on the actual WTI price. "
+    "🟢 Green = correctly predicted direction · 🔴 Red = incorrect prediction."
+)
+
+# Filter predictions to last 3 months from latest prediction date
+last_pred_date = preds["date"].max()
+three_months_ago = last_pred_date - pd.DateOffset(months=3)
+recent_preds = preds[preds["date"] >= three_months_ago].copy()
+
+# Fetch WTI prices for the same window (with small buffer at the end through "today")
+price_start = three_months_ago - timedelta(days=5)
+price_end = max(last_pred_date, pd.Timestamp.now()) + timedelta(days=2)
+
+with st.spinner("Loading WTI price data..."):
+    wti_prices = fetch_wti_prices(price_start, price_end)
+
+if wti_prices is None or wti_prices.empty:
+    st.warning(
+        "⚠️ Could not fetch WTI price data from yfinance right now. "
+        "Showing prediction outcomes without the price line."
+    )
+
+    # Fallback: predictions vs probability without price line
+    plot_df = recent_preds.copy()
+    plot_df["correct"] = plot_df["pred"] == plot_df["actual"]
+
+    fig = go.Figure()
+    correct = plot_df[plot_df["correct"]]
+    incorrect = plot_df[~plot_df["correct"]]
+    fig.add_trace(go.Scatter(
+        x=correct["date"], y=correct["prob_up"],
+        mode="markers", name="Correct",
+        marker=dict(size=10, color="#10B981", line=dict(color="white", width=1.5)),
+        hovertemplate="<b>%{x|%Y-%m-%d}</b><br>P(up): %{y:.3f}<br>✓ Correct<extra></extra>",
+    ))
+    fig.add_trace(go.Scatter(
+        x=incorrect["date"], y=incorrect["prob_up"],
+        mode="markers", name="Incorrect",
+        marker=dict(size=10, color="#EF4444", line=dict(color="white", width=1.5)),
+        hovertemplate="<b>%{x|%Y-%m-%d}</b><br>P(up): %{y:.3f}<br>✗ Incorrect<extra></extra>",
+    ))
+    fig.update_layout(
+        height=520,
+        margin=dict(l=20, r=20, t=20, b=20),
+        plot_bgcolor="white",
+        paper_bgcolor="white",
+        yaxis=dict(title="P(up)", gridcolor="#F3F4F6"),
+        xaxis=dict(gridcolor="#F3F4F6"),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+else:
+    # Merge predictions with prices
+    plot_df = recent_preds.copy()
+    plot_df["date_only"] = plot_df["date"].dt.normalize()
+    wti_prices["date_only"] = wti_prices["date"].dt.normalize()
+    plot_df = plot_df.merge(
+        wti_prices[["date_only", "Close"]],
+        on="date_only",
+        how="left"
+    )
+    plot_df["correct"] = plot_df["pred"] == plot_df["actual"]
+    plot_df = plot_df.dropna(subset=["Close"])
+
+    n_correct = int(plot_df["correct"].sum())
+    n_incorrect = int((~plot_df["correct"]).sum())
+    total_recent = len(plot_df)
+    pct_correct = n_correct / total_recent * 100 if total_recent > 0 else 0
+
+    # Build the chart
+    fig = go.Figure()
+
+    # WTI price line (background)
+    fig.add_trace(go.Scatter(
+        x=wti_prices["date"],
+        y=wti_prices["Close"],
+        mode="lines",
+        name="WTI Price",
+        line=dict(color="#374151", width=2),
+        hovertemplate="<b>%{x|%Y-%m-%d}</b><br>WTI: $%{y:.2f}<extra></extra>",
+    ))
+
+    # Correct predictions (green dots)
+    correct_df = plot_df[plot_df["correct"]]
+    fig.add_trace(go.Scatter(
+        x=correct_df["date"],
+        y=correct_df["Close"],
+        mode="markers",
+        name=f"Correct ({n_correct})",
+        marker=dict(
+            size=10,
+            color="#10B981",
+            line=dict(color="white", width=1.5),
+            symbol="circle",
+        ),
+        hovertemplate=(
+            "<b>%{x|%Y-%m-%d}</b><br>"
+            "WTI: $%{y:.2f}<br>"
+            "<b style='color:#10B981'>✓ Correct prediction</b><extra></extra>"
+        ),
+    ))
+
+    # Incorrect predictions (red dots)
+    incorrect_df = plot_df[~plot_df["correct"]]
+    fig.add_trace(go.Scatter(
+        x=incorrect_df["date"],
+        y=incorrect_df["Close"],
+        mode="markers",
+        name=f"Incorrect ({n_incorrect})",
+        marker=dict(
+            size=10,
+            color="#EF4444",
+            line=dict(color="white", width=1.5),
+            symbol="circle",
+        ),
+        hovertemplate=(
+            "<b>%{x|%Y-%m-%d}</b><br>"
+            "WTI: $%{y:.2f}<br>"
+            "<b style='color:#EF4444'>✗ Incorrect prediction</b><extra></extra>"
+        ),
+    ))
+
+    fig.update_layout(
+        height=520,
+        margin=dict(l=20, r=20, t=20, b=20),
+        plot_bgcolor="white",
+        paper_bgcolor="white",
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1,
+            bgcolor="rgba(255,255,255,0.9)",
+            font=dict(size=12),
+        ),
+        yaxis=dict(
+            title="WTI Price (USD/barrel)",
+            gridcolor="#F3F4F6",
+        ),
+        xaxis=dict(
+            title="",
+            gridcolor="#F3F4F6",
+        ),
+        hovermode="closest",
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+    # 3 metric cards summarizing the 3-month view
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Correct (last 3 months)", f"{n_correct}", "")
+    with col2:
+        st.metric("Incorrect (last 3 months)", f"{n_incorrect}", "")
+    with col3:
+        edge_3m = pct_correct - 50
+        st.metric(
+            "3-month accuracy",
+            f"{pct_correct:.2f}%",
+            f"{edge_3m:+.2f} pp vs random walk"
+        )
+
+    st.caption(
+        f"Window: {three_months_ago.strftime('%Y-%m-%d')} → "
+        f"{last_pred_date.strftime('%Y-%m-%d')} · "
+        f"Hover over any dot for details."
+    )
+
+st.markdown("---")
+
+# ─────────────────────────────────────────────────────────────────────
 # Tabs
 # ─────────────────────────────────────────────────────────────────────
 tab1, tab2, tab3, tab4 = st.tabs([
@@ -182,21 +387,15 @@ with tab1:
         "(>0.30%) over the next 5 trading days."
     )
 
-    # Get the last 5 predictions as the forecast preview
     forecast = preds.tail(5).copy().reset_index(drop=True)
-
-    # Generate 5 next forecast dates (business days after the last actual prediction)
     last_date = preds["date"].max()
     forecast_dates = pd.bdate_range(
         start=last_date + timedelta(days=1),
         periods=5,
     )
 
-    # Build the forecast cards
     cols = st.columns(5)
     for i, (col, fdate) in enumerate(zip(cols, forecast_dates)):
-        # Use the most recent predictions as proxy "next 5 day" outputs
-        # In production this would query the live model
         recent = forecast.iloc[i] if i < len(forecast) else forecast.iloc[-1]
         prob_up = float(recent["prob_up"])
         signal = "UP" if prob_up >= 0.50 else "DOWN"
@@ -224,14 +423,14 @@ with tab1:
                 )
 
     st.markdown(
-        '<p class="footer-note">Forecasts shown are demonstrations from the trained model. '
-        f'The model only places a trade when |P(up) − 0.5| ≥ 0.02 AND confidence ≥ '
+        '<p class="footer-note">The model only places a trade when '
+        f'|P(up) − 0.5| ≥ 0.02 AND confidence ≥ '
         f'{meta["confidence_threshold"]:.2f}.</p>',
         unsafe_allow_html=True
     )
 
     st.markdown("---")
-    st.markdown("### Recent Prediction History (Last 30 Days)")
+    st.markdown("### Probability Distribution — Last 30 Days")
 
     recent_30 = preds.tail(30).copy()
     recent_30["correct"] = recent_30["pred"] == recent_30["actual"]
@@ -251,7 +450,7 @@ with tab1:
         hovertemplate="<b>%{x|%Y-%m-%d}</b><br>P(up): %{y:.3f}<extra></extra>",
     ))
     fig.add_hline(y=0.5, line_dash="dash", line_color="#6B7280",
-                  annotation_text="50% threshold")
+                  annotation_text="Random walk (50%)")
     fig.add_hline(y=0.52, line_dash="dot", line_color="#10B981",
                   annotation_text="Trade UP threshold")
     fig.add_hline(y=0.48, line_dash="dot", line_color="#EF4444",
@@ -418,18 +617,17 @@ with tab3:
     | End date | {meta['data_end']} |
     | Total predictions | {meta['n_predictions']:,} |
     | Trades placed | {meta['n_trades']} ({meta['trade_rate_pct']:.1f}%) |
-    | Always-up baseline accuracy | {meta['always_up_baseline']*100:.2f}% |
-    | Edge vs baseline | {meta['edge_vs_baseline_pp']:+.2f} pp |
+    | Random walk baseline | 50.00% |
+    | Edge vs random walk | {edge_pp:+.2f} pp |
     """)
 
 # ─────────────────────────────────────────────────────────────────────
-# TAB 4: Comparison to Literature (from My_new_version.docx)
+# TAB 4: Comparison to Literature (from My_new_version.docx, baseline = 50%)
 # ─────────────────────────────────────────────────────────────────────
 with tab4:
     st.markdown("### Comparison Against Other Models in This Study")
     st.caption("Source: Comparison table from project document (Table 7)")
 
-    # Comparison data exactly from the docx
     comparison_data = [
         {"#": "—", "Model": "Random walk (baseline)", "Training Period": "—",
          "Trades": "—", "Post-2020 Acc.": "50.00%", "Sharpe": "—"},
@@ -474,7 +672,6 @@ with tab4:
     st.markdown("---")
     st.markdown("### Visual Comparison")
 
-    # Bar chart of Post-2020 accuracy across all models
     chart_df = comparison_df[comparison_df["Post-2020 Acc."] != "50.00%"].copy()
     chart_df["acc_pct"] = chart_df["Post-2020 Acc."].str.replace("%", "").astype(float)
     chart_df = chart_df.sort_values("acc_pct", ascending=True)
@@ -489,14 +686,15 @@ with tab4:
         text=[f"{v:.2f}%" for v in chart_df["acc_pct"]],
         textposition="outside",
     ))
-    fig.add_vline(x=50, line_dash="dash", line_color="#6B7280",
-                  annotation_text="Random walk")
-    fig.add_vline(x=meta["always_up_baseline"]*100,
-                  line_dash="dot", line_color="#10B981",
-                  annotation_text=f"Always-up ({meta['always_up_baseline']*100:.1f}%)")
+    # Single baseline reference line: random walk at 50%
+    fig.add_vline(
+        x=50, line_dash="dash", line_color="#6B7280",
+        annotation_text="Random walk (50%)",
+        annotation_position="top",
+    )
     fig.update_layout(
         height=500,
-        margin=dict(l=20, r=80, t=20, b=20),
+        margin=dict(l=20, r=80, t=40, b=20),
         plot_bgcolor="white",
         paper_bgcolor="white",
         xaxis=dict(title="Post-2020 Accuracy (%)", range=[40, 65],
