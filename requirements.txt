@@ -1,10 +1,4 @@
-lightgbm>=4.0
+streamlit>=1.30
 pandas>=2.0
 numpy>=1.26
-scikit-learn>=1.4
-optuna>=3.4
-requests>=2.31
-yfinance>=0.2.40
-streamlit>=1.30
 plotly>=5.18
-tqdm>=4.66
