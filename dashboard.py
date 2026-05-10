@@ -429,44 +429,6 @@ with tab1:
         unsafe_allow_html=True
     )
 
-    st.markdown("---")
-    st.markdown("### Probability Distribution — Last 30 Days")
-
-    recent_30 = preds.tail(30).copy()
-    recent_30["correct"] = recent_30["pred"] == recent_30["actual"]
-
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(
-        x=recent_30["date"],
-        y=recent_30["prob_up"],
-        mode="lines+markers",
-        name="P(up)",
-        line=dict(color="#3B82F6", width=2),
-        marker=dict(
-            size=10,
-            color=["#10B981" if c else "#EF4444" for c in recent_30["correct"]],
-            line=dict(color="white", width=1),
-        ),
-        hovertemplate="<b>%{x|%Y-%m-%d}</b><br>P(up): %{y:.3f}<extra></extra>",
-    ))
-    fig.add_hline(y=0.5, line_dash="dash", line_color="#6B7280",
-                  annotation_text="Random walk (50%)")
-    fig.add_hline(y=0.52, line_dash="dot", line_color="#10B981",
-                  annotation_text="Trade UP threshold")
-    fig.add_hline(y=0.48, line_dash="dot", line_color="#EF4444",
-                  annotation_text="Trade DOWN threshold")
-    fig.update_layout(
-        height=350,
-        margin=dict(l=20, r=20, t=20, b=20),
-        plot_bgcolor="white",
-        paper_bgcolor="white",
-        showlegend=False,
-        yaxis=dict(title="P(up)", range=[0.3, 0.7], gridcolor="#F3F4F6"),
-        xaxis=dict(gridcolor="#F3F4F6"),
-    )
-    st.plotly_chart(fig, use_container_width=True)
-    st.caption("Green markers = correct prediction · Red markers = incorrect prediction")
-
 # ─────────────────────────────────────────────────────────────────────
 # TAB 2: Performance
 # ─────────────────────────────────────────────────────────────────────
@@ -498,27 +460,6 @@ with tab2:
         xaxis=dict(gridcolor="#F3F4F6"),
     )
     st.plotly_chart(fig, use_container_width=True)
-
-    st.markdown("### Performance by Predicted Direction")
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.markdown("**Up Predictions (Traded)**")
-        up_traded = traded[traded["pred"] == 1]
-        if len(up_traded) > 0:
-            up_acc = (up_traded["pred"] == up_traded["actual"]).mean()
-            st.metric("Accuracy", f"{up_acc*100:.2f}%", f"{len(up_traded)} trades")
-            st.metric("Total Return", f"{up_traded['ret'].sum()*100:+.2f}%")
-
-    with col2:
-        st.markdown("**Down Predictions (Traded)**")
-        down_traded = traded[traded["pred"] == 0]
-        if len(down_traded) > 0:
-            down_acc = (down_traded["pred"] == down_traded["actual"]).mean()
-            st.metric("Accuracy", f"{down_acc*100:.2f}%", f"{len(down_traded)} trades")
-            st.metric("Total Return", f"{down_traded['ret'].sum()*100:+.2f}%")
-        else:
-            st.info("No down predictions were traded.")
 
     st.markdown("### Recall by Class")
     col1, col2 = st.columns(2)
