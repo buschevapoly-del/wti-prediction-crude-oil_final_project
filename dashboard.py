@@ -616,19 +616,27 @@ with col_details:
 # ─── Next 5 trading days forecast (reviewer requested) ─
 st.markdown("##### 📅 Next 5 trading days — forecast horizon")
 
-# Use today's forecast (already computed above) for all 5 cards
+# Use the last 5 model predictions, one per card — each card has its own P(up)
 latest_date = preds["date"].max()
 next_5_days = pd.bdate_range(start=latest_date + timedelta(days=1), periods=5)
-
-if signal == "UP":
-    badge_class, icon, label = "signal-hero-buy", "▲", "UP"
-elif signal == "DOWN":
-    badge_class, icon, label = "signal-hero-sell", "▼", "DOWN"
-else:
-    badge_class, icon, label = "signal-hero-hold", "—", "NEUTRAL"
+last_5_preds = preds.tail(5).copy().reset_index(drop=True)
 
 cols = st.columns(5)
 for i, (col, day) in enumerate(zip(cols, next_5_days)):
+    # Per-card probability from the last 5 predictions
+    p_i = float(last_5_preds.iloc[i]["prob_up"])
+    c_i = max(p_i, 1 - p_i)
+    e_i = abs(p_i - 0.5)
+
+    # Classify each card independently
+    if c_i >= CONF_THRESHOLD and e_i >= EDGE_THRESHOLD:
+        if p_i >= 0.5:
+            badge_class_i, icon_i, label_i = "signal-hero-buy", "▲", "UP"
+        else:
+            badge_class_i, icon_i, label_i = "signal-hero-sell", "▼", "DOWN"
+    else:
+        badge_class_i, icon_i, label_i = "signal-hero-hold", "—", "NEUTRAL"
+
     day_label = f"Day {i+1}"
     is_first = (i == 0)
     first_tag = ('<span style="font-size:0.7rem;background:white;color:#0E1117;'
@@ -639,13 +647,14 @@ for i, (col, day) in enumerate(zip(cols, next_5_days)):
                 if i == 4 else "")
     with col:
         st.markdown(
-            f'<div class="{badge_class}" style="padding:1rem;border-radius:10px;'
+            f'<div class="{badge_class_i}" style="padding:1rem;border-radius:10px;'
             f'box-shadow:none;margin-bottom:0.5rem;">'
             f'<div style="font-size:0.72rem;opacity:0.9;text-transform:uppercase;'
             f'letter-spacing:0.05em;">{day.strftime("%a, %d %b")} &nbsp;{first_tag}{last_tag}</div>'
             f'<div style="font-size:1.6rem;font-weight:700;margin:0.3rem 0;">'
-            f'{icon} {label}</div>'
+            f'{icon_i} {label_i}</div>'
             f'<div style="font-size:0.8rem;opacity:0.9;">{day_label} of 5-day horizon</div>'
+            f'<div style="font-size:0.75rem;opacity:0.8;">P(up) = {p_i:.3f}</div>'
             f'</div>',
             unsafe_allow_html=True
         )
@@ -685,17 +694,88 @@ def contribution_text(label, value, threshold_bull, threshold_bear, unit=""):
     else:
         return "Neutral", "#6B7280", f"{label} = {value:.3f}{unit}"
 
-# Driver 1: Technical indicators — derived from regime data (real WTI price action)
-if regime_data is not None:
-    if regime_data["regime"] == "Bullish":
+# Driver 1: Technical indicators — computed from real WTI price data
+# Uses the same features the model itself trains on: RSI-14, MACD, 5-day momentum,
+# 20-day momentum, Bollinger Band position. The lean is an average of these signals.
+@st.cache_data(ttl=3600)
+def compute_technical_indicators():
+    """Compute the 5 price-technical indicators the model uses, then aggregate to a lean."""
+    try:
+        import yfinance as yf
+        hist = yf.Ticker("CL=F").history(period="300d", auto_adjust=False)
+        if hist.empty or len(hist) < 30:
+            return None
+        prices = hist["Close"].dropna()
+
+        # RSI-14
+        delta = prices.diff()
+        gain = delta.where(delta > 0, 0).rolling(14).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
+        rs = gain / (loss + 1e-10)
+        rsi = 100 - (100 / (1 + rs))
+        rsi_val = float(rsi.iloc[-1])
+
+        # MACD (12-26 EMA difference)
+        ema12 = prices.ewm(span=12, adjust=False).mean()
+        ema26 = prices.ewm(span=26, adjust=False).mean()
+        macd = ema12 - ema26
+        macd_val = float(macd.iloc[-1])
+
+        # 5-day momentum
+        mom5 = float(prices.iloc[-1] / prices.iloc[-5] - 1) if len(prices) >= 5 else 0
+        # 20-day momentum
+        mom20 = float(prices.iloc[-1] / prices.iloc[-20] - 1) if len(prices) >= 20 else 0
+
+        # Bollinger Band position (where current price sits in 20-day band)
+        ma20 = prices.tail(20).mean()
+        std20 = prices.tail(20).std()
+        bb_position = (prices.iloc[-1] - ma20) / (2 * std20) if std20 > 0 else 0
+        bb_val = float(bb_position)
+
+        # Classify each indicator individually
+        signals = {
+            "RSI-14": 1 if rsi_val > 55 else (-1 if rsi_val < 45 else 0),
+            "MACD": 1 if macd_val > 0 else (-1 if macd_val < 0 else 0),
+            "5d Momentum": 1 if mom5 > 0.01 else (-1 if mom5 < -0.01 else 0),
+            "20d Momentum": 1 if mom20 > 0.02 else (-1 if mom20 < -0.02 else 0),
+            "Bollinger Band": 1 if bb_val > 0.3 else (-1 if bb_val < -0.3 else 0),
+        }
+        # Aggregate
+        score = sum(signals.values())  # -5 to +5
+        return {
+            "rsi": rsi_val,
+            "macd": macd_val,
+            "mom5": mom5,
+            "mom20": mom20,
+            "bb": bb_val,
+            "signals": signals,
+            "score": score,
+        }
+    except Exception:
+        return None
+
+tech_data = compute_technical_indicators()
+if tech_data is not None:
+    score = tech_data["score"]
+    if score >= 2:
         tech_lean, tech_color = "Bullish", "#10B981"
-    elif regime_data["regime"] == "Bearish":
+    elif score <= -2:
         tech_lean, tech_color = "Bearish", "#EF4444"
     else:
         tech_lean, tech_color = "Neutral", "#6B7280"
+    # Build the indicator list text
+    indicator_lines = []
+    for name, sig in tech_data["signals"].items():
+        if sig > 0:
+            indicator_lines.append(f"• {name}: ▲")
+        elif sig < 0:
+            indicator_lines.append(f"• {name}: ▼")
+        else:
+            indicator_lines.append(f"• {name}: —")
+    tech_detail = "<br>".join(indicator_lines)
 else:
     tech_lean, tech_color = "Neutral", "#6B7280"
-tech_detail = ""  # detail text removed per request
+    tech_detail = "Indicators unavailable"
 
 # Driver 2: F&G — derived from probability trend (we don't have F&G live, so we approximate)
 prob_trend = prob_up - recent_avg_prob
@@ -724,7 +804,7 @@ def driver_card_html(emoji, label, lean, color, detail):
         f'<div class="driver-label">{emoji} {label}</div>'
         f'<div style="font-size:1.15rem;font-weight:700;color:{color};margin-top:0.3rem;">'
         f'{lean}</div>'
-        f'<div style="font-size:0.85rem;color:#6B7280;margin-top:0.2rem;">{detail}</div>'
+        f'<div style="font-size:0.85rem;color:#6B7280;margin-top:0.4rem;line-height:1.5;">{detail}</div>'
         f'</div>'
     )
 
@@ -789,86 +869,6 @@ with tab1:
     st.caption(f"Final return: {risk['final_return']*100:+.2f}% (compound) · "
                f"Annualized: {annualized_return*100:+.2f}% · "
                f"Sharpe: {risk['sharpe']:.3f}")
-
-    # ─── Confidence vs Hit Rate (calibration plot) ────────────────
-    st.markdown("---")
-    st.markdown("### Confidence vs. Hit Rate (Calibration)")
-    st.caption(
-        "Each bar shows the model's actual accuracy (hit rate) within a confidence band. "
-        "A well-calibrated model has bars roughly matching the band center: predictions "
-        "with 60% confidence should be correct ~60% of the time. Bars above the diagonal "
-        "(grey dashed line) mean the model is under-confident; bars below mean over-confident."
-    )
-
-    # Compute calibration: bin predictions by confidence, measure accuracy in each bin
-    calib = preds.copy()
-    calib["confidence"] = calib["prob_up"].apply(lambda p: max(p, 1 - p))
-    calib["correct"] = (calib["pred"] == calib["actual"]).astype(int)
-
-    # Bin into confidence buckets
-    bins = [0.50, 0.52, 0.54, 0.56, 0.58, 0.60, 0.65, 0.75, 1.00]
-    bin_labels = ["50-52%", "52-54%", "54-56%", "56-58%", "58-60%", "60-65%", "65-75%", "75-100%"]
-    calib["conf_bin"] = pd.cut(calib["confidence"], bins=bins, labels=bin_labels,
-                                include_lowest=True)
-
-    calib_summary = calib.groupby("conf_bin", observed=True).agg(
-        n_predictions=("correct", "count"),
-        hit_rate=("correct", "mean"),
-    ).reset_index()
-    calib_summary = calib_summary[calib_summary["n_predictions"] > 0]
-
-    # Bin centers for the diagonal reference
-    bin_centers = {
-        "50-52%": 51, "52-54%": 53, "54-56%": 55, "56-58%": 57,
-        "58-60%": 59, "60-65%": 62.5, "65-75%": 70, "75-100%": 87.5,
-    }
-    calib_summary["bin_center"] = calib_summary["conf_bin"].astype(str).map(bin_centers)
-    calib_summary["hit_rate_pct"] = calib_summary["hit_rate"] * 100
-
-    # Color bars by whether above (green) or below (red) calibration line
-    bar_colors = [
-        "#10B981" if hr >= bc else "#EF4444"
-        for hr, bc in zip(calib_summary["hit_rate_pct"], calib_summary["bin_center"])
-    ]
-
-    fig_calib = go.Figure()
-    fig_calib.add_trace(go.Bar(
-        x=calib_summary["conf_bin"].astype(str),
-        y=calib_summary["hit_rate_pct"],
-        marker_color=bar_colors,
-        text=[f"{hr:.1f}%<br>(n={n})" for hr, n in
-              zip(calib_summary["hit_rate_pct"], calib_summary["n_predictions"])],
-        textposition="outside",
-        hovertemplate="<b>Confidence: %{x}</b><br>"
-                      "Hit rate: %{y:.2f}%<extra></extra>",
-        showlegend=False,
-    ))
-
-    # Diagonal "perfect calibration" line
-    fig_calib.add_trace(go.Scatter(
-        x=calib_summary["conf_bin"].astype(str),
-        y=calib_summary["bin_center"],
-        mode="lines+markers",
-        line=dict(color="#6B7280", width=2, dash="dash"),
-        marker=dict(size=6, color="#6B7280"),
-        name="Perfect calibration",
-        hovertemplate="Bin center: %{y:.1f}%<extra></extra>",
-    ))
-
-    fig_calib.update_layout(
-        height=420, margin=dict(l=20, r=20, t=20, b=20),
-        plot_bgcolor="white", paper_bgcolor="white",
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        yaxis=dict(title="Hit rate (%)", gridcolor="#F3F4F6", range=[35, 90]),
-        xaxis=dict(title="Confidence bucket", gridcolor="#F3F4F6"),
-    )
-    st.plotly_chart(fig_calib, use_container_width=True)
-    st.caption(
-        f"Total predictions: {calib_summary['n_predictions'].sum():,} · "
-        f"Highest-confidence bucket hit rate: "
-        f"{calib_summary.iloc[-1]['hit_rate_pct']:.2f}% "
-        f"(n = {calib_summary.iloc[-1]['n_predictions']})"
-    )
 
 # ─────────────────────────────────────────────────────────────────────
 # TAB 2: Methodology
