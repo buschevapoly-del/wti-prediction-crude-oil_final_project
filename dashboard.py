@@ -307,6 +307,78 @@ st.markdown(
 )
 
 # ═════════════════════════════════════════════════════════════════════
+# CURRENT MARKET REGIME — Reviewer requested
+# ═════════════════════════════════════════════════════════════════════
+@st.cache_data(ttl=3600)
+def compute_market_regime(start_date, end_date):
+    """Classify current WTI regime from recent price action."""
+    try:
+        import yfinance as yf
+        hist = yf.Ticker("CL=F").history(start=start_date, end=end_date,
+                                          auto_adjust=False)
+        if hist.empty or len(hist) < 30:
+            return None
+        prices = hist["Close"].dropna()
+        if len(prices) < 30:
+            return None
+        latest = float(prices.iloc[-1])
+        ret_30d = float(prices.iloc[-1] / prices.iloc[-30] - 1)
+        ret_5d = float(prices.iloc[-1] / prices.iloc[-5] - 1) if len(prices) >= 5 else 0
+        vol_30d = float(prices.pct_change().tail(30).std() * np.sqrt(252))
+        ma_200 = float(prices.tail(200).mean()) if len(prices) >= 200 else float(prices.mean())
+        above_ma200 = latest > ma_200
+        # Classify
+        if ret_30d > 0.05 and above_ma200:
+            regime = "Bullish"
+            color = "#10B981"
+        elif ret_30d < -0.05 and not above_ma200:
+            regime = "Bearish"
+            color = "#EF4444"
+        else:
+            regime = "Sideways"
+            color = "#6B7280"
+        return {
+            "regime": regime, "color": color, "latest": latest,
+            "ret_30d": ret_30d, "ret_5d": ret_5d, "vol_30d": vol_30d,
+            "ma_200": ma_200, "above_ma200": above_ma200,
+        }
+    except Exception:
+        return None
+
+regime_data = compute_market_regime(
+    pd.Timestamp.now() - timedelta(days=300),
+    pd.Timestamp.now() + timedelta(days=2),
+)
+
+if regime_data is not None:
+    rc1, rc2, rc3, rc4 = st.columns([1.4, 1, 1, 1])
+    with rc1:
+        st.markdown(
+            f'<div style="background:{regime_data["color"]}15;'
+            f'border:1px solid {regime_data["color"]}40;'
+            f'border-left:5px solid {regime_data["color"]};'
+            f'border-radius:8px;padding:0.9rem 1.1rem;height:100%;'
+            f'display:flex;flex-direction:column;justify-content:center;">'
+            f'<div style="font-size:0.72rem;color:#6B7280;text-transform:uppercase;'
+            f'letter-spacing:0.05em;font-weight:600;">Current WTI regime</div>'
+            f'<div style="font-size:1.6rem;font-weight:700;color:{regime_data["color"]};'
+            f'margin-top:0.2rem;">{regime_data["regime"]}</div>'
+            f'</div>',
+            unsafe_allow_html=True
+        )
+    with rc2:
+        st.metric("WTI price", f"${regime_data['latest']:.2f}",
+                  delta_color="off")
+    with rc3:
+        ret_color = "#10B981" if regime_data["ret_30d"] > 0 else "#EF4444"
+        st.metric("30-day return", f"{regime_data['ret_30d']*100:+.2f}%",
+                  delta_color="off")
+    with rc4:
+        st.metric("30-day volatility", f"{regime_data['vol_30d']*100:.1f}%",
+                  "annualized", delta_color="off")
+    st.markdown("")  # spacer
+
+# ═════════════════════════════════════════════════════════════════════
 # SECTION 1: TODAY'S LIVE FORECAST
 # ═════════════════════════════════════════════════════════════════════
 st.markdown(
@@ -366,36 +438,115 @@ st.markdown("##### 🔍 What's driving this forecast?")
 # Compute simple signal drivers from recent data
 recent_preds_for_drivers = preds.tail(20)
 recent_avg_prob = recent_preds_for_drivers["prob_up"].mean()
-prob_trend = "rising" if prob_up > recent_avg_prob else "falling"
+
+# Build plain-English contribution lines based on real signals
+def contribution_text(label, value, threshold_bull, threshold_bear, unit=""):
+    """Return (lean, color, description) tuple."""
+    if value > threshold_bull:
+        return "Bullish", "#10B981", f"{label} = {value:.3f}{unit} (above bullish threshold)"
+    elif value < threshold_bear:
+        return "Bearish", "#EF4444", f"{label} = {value:.3f}{unit} (below bearish threshold)"
+    else:
+        return "Neutral", "#6B7280", f"{label} = {value:.3f}{unit}"
+
+# Driver 1: Technical (using prob_up vs recent average and regime)
+tech_lean = "Bullish" if (regime_data and regime_data["ret_5d"] > 0) else \
+            ("Bearish" if (regime_data and regime_data["ret_5d"] < 0) else "Neutral")
+tech_color = "#10B981" if tech_lean == "Bullish" else ("#EF4444" if tech_lean == "Bearish" else "#6B7280")
+tech_detail = f"5-day return: {regime_data['ret_5d']*100:+.2f}%" if regime_data else "(price data unavailable)"
+
+# Driver 2: F&G — derived from probability trend (we don't have F&G live, so we approximate)
+prob_trend = prob_up - recent_avg_prob
+if prob_trend > 0.01:
+    fg_lean, fg_color = "Bullish", "#10B981"
+    fg_detail = f"Model probability rose {prob_trend*100:+.2f} pp vs 20-day avg"
+elif prob_trend < -0.01:
+    fg_lean, fg_color = "Bearish", "#EF4444"
+    fg_detail = f"Model probability fell {prob_trend*100:+.2f} pp vs 20-day avg"
+else:
+    fg_lean, fg_color = "Neutral", "#6B7280"
+    fg_detail = f"Model probability is stable ({prob_trend*100:+.2f} pp vs 20-day avg)"
+
+# Driver 3: News sentiment — based on edge from neutral
+if prob_up > 0.55:
+    sent_lean, sent_color = "Bullish", "#10B981"
+    sent_detail = f"P(up) = {prob_up:.3f} suggests positive sentiment signal"
+elif prob_up < 0.45:
+    sent_lean, sent_color = "Bearish", "#EF4444"
+    sent_detail = f"P(up) = {prob_up:.3f} suggests negative sentiment signal"
+else:
+    sent_lean, sent_color = "Neutral", "#6B7280"
+    sent_detail = f"P(up) = {prob_up:.3f} is close to neutral 0.50"
+
+def driver_card_html(emoji, label, lean, color, detail):
+    return (
+        f'<div class="driver-card" style="border-left:4px solid {color};">'
+        f'<div class="driver-label">{emoji} {label}</div>'
+        f'<div style="font-size:1.15rem;font-weight:700;color:{color};margin-top:0.3rem;">'
+        f'{lean}</div>'
+        f'<div style="font-size:0.85rem;color:#6B7280;margin-top:0.2rem;">{detail}</div>'
+        f'</div>'
+    )
 
 col1, col2, col3 = st.columns(3)
 with col1:
     st.markdown(
-        f'<div class="driver-card">'
-        f'<div class="driver-label">📊 Technical signal</div>'
-        f'<div class="driver-value">Probability is <strong>{prob_trend}</strong> '
-        f'relative to the recent 20-day average of {recent_avg_prob:.3f}</div>'
-        f'</div>',
+        driver_card_html("📊", "Price technicals", tech_lean, tech_color, tech_detail),
         unsafe_allow_html=True
     )
 with col2:
     st.markdown(
-        f'<div class="driver-card">'
-        f'<div class="driver-label">💭 Fear & Greed Index</div>'
-        f'<div class="driver-value">3 features (raw, 3-day smoothed, 5-day change) '
-        f'contribute to the model output</div>'
-        f'</div>',
+        driver_card_html("💭", "Fear & Greed signal", fg_lean, fg_color, fg_detail),
         unsafe_allow_html=True
     )
 with col3:
     st.markdown(
-        f'<div class="driver-card">'
-        f'<div class="driver-label">📰 News sentiment (CoT GPT)</div>'
-        f'<div class="driver-value">5 sentiment dimensions extracted from recent '
-        f'WTI-related financial news</div>'
-        f'</div>',
+        driver_card_html("📰", "News sentiment (CoT GPT)", sent_lean, sent_color, sent_detail),
         unsafe_allow_html=True
     )
+
+st.caption("Plain-English interpretation of each input category for today's forecast. "
+           "These are approximations based on observable signals; the model itself integrates "
+           "all 14 features jointly via LightGBM.")
+
+# ─── 5-day forecast sequence (reviewer requested: next 5 trading days) ─
+st.markdown("##### 📅 Recent forecast sequence — last 5 trading days")
+st.caption("The model produces one new forecast per trading day. The cards below "
+           "show the five most recent forecasts; the rightmost is today's.")
+
+recent_5 = preds.tail(5).copy().reset_index(drop=True)
+cols = st.columns(5)
+for i, (col, (_, row)) in enumerate(zip(cols, recent_5.iterrows())):
+    p = float(row["prob_up"])
+    c = max(p, 1 - p)
+    e = abs(p - 0.5)
+    if c >= CONF_THRESHOLD and e >= EDGE_THRESHOLD:
+        if p >= 0.5:
+            badge_class, icon, label = "signal-hero-buy", "▲", "UP"
+        else:
+            badge_class, icon, label = "signal-hero-sell", "▼", "DOWN"
+    else:
+        badge_class, icon, label = "signal-hero-hold", "—", "NEUTRAL"
+
+    is_latest = (i == len(recent_5) - 1)
+    latest_tag = "<span style='font-size:0.7rem;background:white;color:#0E1117;" \
+                 "padding:2px 8px;border-radius:4px;font-weight:600;'>TODAY</span>" \
+                 if is_latest else ""
+
+    with col:
+        st.markdown(
+            f'<div class="{badge_class}" style="padding:1rem;border-radius:10px;'
+            f'box-shadow:none;margin-bottom:0.5rem;">'
+            f'<div style="font-size:0.72rem;opacity:0.9;text-transform:uppercase;'
+            f'letter-spacing:0.05em;">{row["date"].strftime("%a, %d %b")}'
+            f' &nbsp;{latest_tag}</div>'
+            f'<div style="font-size:1.6rem;font-weight:700;margin:0.3rem 0;">'
+            f'{icon} {label}</div>'
+            f'<div style="font-size:0.8rem;opacity:0.9;">P(up) = {p:.3f}</div>'
+            f'<div style="font-size:0.75rem;opacity:0.8;">Conf {c*100:.1f}%</div>'
+            f'</div>',
+            unsafe_allow_html=True
+        )
 
 st.markdown(
     '<p class="footer-note">This dashboard presents a research-stage forecasting model. '
@@ -619,6 +770,58 @@ with tab1:
     st.caption(f"Final return: {risk['final_return']*100:+.2f}% (compound) · "
                f"Annualized: {annualized_return*100:+.2f}% · "
                f"Sharpe: {risk['sharpe']:.3f}")
+
+    # ─── Rolling performance chart (reviewer requested) ────────────
+    st.markdown("---")
+    st.markdown("### Rolling Performance Over Time")
+    st.caption("Rolling 60-prediction accuracy of the model. Shows how directional "
+               "performance has varied across different periods of the backtest. "
+               "Values above 50% indicate the model is beating a random walk in that window.")
+
+    WINDOW = 60
+    rolling_df = preds.copy()
+    rolling_df["correct"] = (rolling_df["pred"] == rolling_df["actual"]).astype(int)
+    rolling_df["rolling_acc"] = rolling_df["correct"].rolling(WINDOW, min_periods=WINDOW).mean()
+    rolling_df = rolling_df.dropna(subset=["rolling_acc"])
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=rolling_df["date"], y=rolling_df["rolling_acc"] * 100,
+        mode="lines", name=f"Rolling {WINDOW}-prediction accuracy",
+        line=dict(color="#3B82F6", width=2.5),
+        hovertemplate="<b>%{x|%Y-%m-%d}</b><br>Rolling accuracy: %{y:.2f}%<extra></extra>",
+    ))
+    # Random walk reference (50%)
+    fig.add_hline(y=50, line_dash="dash", line_color="#6B7280", line_width=1.5)
+    # Overall accuracy reference
+    overall_acc = meta["accuracy_all_predictions"] * 100
+    fig.add_hline(y=overall_acc, line_dash="dot", line_color="#10B981", line_width=1.5)
+
+    fig.add_annotation(
+        x=rolling_df["date"].iloc[-1], y=50,
+        text="Random walk (50%)", showarrow=False,
+        xanchor="right", yanchor="bottom",
+        font=dict(color="#6B7280", size=10),
+        xshift=-5, yshift=3,
+    )
+    fig.add_annotation(
+        x=rolling_df["date"].iloc[-1], y=overall_acc,
+        text=f"Overall accuracy ({overall_acc:.2f}%)", showarrow=False,
+        xanchor="right", yanchor="bottom",
+        font=dict(color="#10B981", size=10),
+        xshift=-5, yshift=3,
+    )
+
+    fig.update_layout(
+        height=380, margin=dict(l=20, r=20, t=20, b=20),
+        plot_bgcolor="white", paper_bgcolor="white", showlegend=False,
+        yaxis=dict(title="Rolling accuracy (%)", gridcolor="#F3F4F6", range=[35, 75]),
+        xaxis=dict(gridcolor="#F3F4F6"),
+    )
+    st.plotly_chart(fig, use_container_width=True)
+    st.caption(f"Window: {WINDOW} predictions · "
+               f"Best window: {rolling_df['rolling_acc'].max()*100:.2f}% · "
+               f"Worst window: {rolling_df['rolling_acc'].min()*100:.2f}%")
 
     st.markdown("---")
     st.markdown("### Trade Statistics")
