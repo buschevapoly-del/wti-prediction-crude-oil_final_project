@@ -1,6 +1,6 @@
 """
-WTI Crude Oil 5-Day Direction Forecast — Decision Support Dashboard
-====================================================================
+WTI Crude Oil 5-Day Direction Forecast — Research Dashboard
+============================================================
 LightGBM + Chain-of-Thought GPT Sentiment + Fear & Greed Index
 """
 
@@ -39,11 +39,55 @@ st.markdown("""
     .sub-header {
         font-size: 1.15rem;
         color: #6B7280;
-        margin-bottom: 2.2rem;
+        margin-bottom: 1.4rem;
         font-weight: 400;
     }
 
-    /* Today's signal card — the centerpiece */
+    /* Methodology bar — always visible at top */
+    .method-bar {
+        background: #F9FAFB;
+        border: 1px solid #E5E7EB;
+        border-left: 4px solid #1E40AF;
+        border-radius: 8px;
+        padding: 1rem 1.4rem;
+        margin-bottom: 1.6rem;
+        font-size: 0.95rem;
+        line-height: 1.55;
+        color: #374151;
+    }
+    .method-bar strong {
+        color: #0E1117;
+    }
+
+    /* Section badges */
+    .badge-backtest {
+        display: inline-block;
+        background: #DBEAFE;
+        color: #1E40AF;
+        padding: 4px 12px;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        margin-left: 12px;
+        vertical-align: middle;
+    }
+    .badge-live {
+        display: inline-block;
+        background: #DCFCE7;
+        color: #166534;
+        padding: 4px 12px;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        margin-left: 12px;
+        vertical-align: middle;
+    }
+
+    /* Today's signal card */
     .signal-hero-buy {
         background: linear-gradient(135deg, #10B981 0%, #059669 100%);
         color: white;
@@ -90,29 +134,37 @@ st.markdown("""
         margin-top: 0.6rem;
     }
 
-    /* Risk metric cards */
-    .risk-card {
-        background: #FAFAFA;
+    /* Metric definition (under KPI cards) */
+    .metric-def {
+        font-size: 0.78rem;
+        color: #6B7280;
+        font-style: italic;
+        margin-top: -0.4rem;
+        margin-bottom: 1rem;
+        line-height: 1.35;
+    }
+
+    /* Driver explanation card */
+    .driver-card {
+        background: #F9FAFB;
         border: 1px solid #E5E7EB;
         border-radius: 10px;
         padding: 1rem;
-        text-align: center;
+        margin-bottom: 0.6rem;
     }
-    .risk-label {
-        font-size: 0.8rem;
+    .driver-label {
+        font-size: 0.75rem;
         color: #6B7280;
         text-transform: uppercase;
         letter-spacing: 0.05em;
-        font-weight: 500;
-        margin-bottom: 0.3rem;
+        font-weight: 600;
     }
-    .risk-value {
-        font-size: 1.6rem;
-        font-weight: 700;
+    .driver-value {
+        font-size: 1rem;
         color: #0E1117;
+        font-weight: 500;
+        margin-top: 0.3rem;
     }
-    .risk-value-red { color: #DC2626; }
-    .risk-value-green { color: #059669; }
 
     /* Tabs */
     .stTabs [data-baseweb="tab-list"] { gap: 8px; }
@@ -126,11 +178,13 @@ st.markdown("""
         color: white !important;
     }
     .section-header {
-        font-size: 1.6rem;
+        font-size: 1.7rem;
         font-weight: 700;
         color: #0E1117;
         margin-top: 1rem;
-        margin-bottom: 0.5rem;
+        margin-bottom: 0.4rem;
+        display: flex;
+        align-items: center;
     }
     .footer-note {
         font-size: 0.85rem;
@@ -180,42 +234,24 @@ RANDOM_WALK_BASELINE = 0.50
 CONF_THRESHOLD = meta.get("confidence_threshold", 0.52)
 EDGE_THRESHOLD = 0.02
 HORIZON_DAYS = meta.get("prediction_horizon_days", 5)
+LABEL_THRESHOLD = meta.get("label_threshold_pct", 0.30)
 
 # ─────────────────────────────────────────────────────────────────────
-# Compute risk metrics from predictions
+# Compute risk metrics
 # ─────────────────────────────────────────────────────────────────────
 @st.cache_data
 def compute_risk_metrics(preds_df):
     traded = preds_df[preds_df["traded"]].copy().sort_values("date").reset_index(drop=True)
     if len(traded) == 0:
         return None
-
-    # Equity curve
     traded["cum_ret"] = (1 + traded["ret"]).cumprod() - 1
     final_return = traded["cum_ret"].iloc[-1]
-
-    # Max drawdown
-    equity = (1 + traded["ret"]).cumprod()
-    running_max = equity.cummax()
-    drawdown = (equity - running_max) / running_max
-    max_dd = drawdown.min()
-    dd_idx = drawdown.idxmin()
-    dd_date = traded.loc[dd_idx, "date"]
-
-    # Win / loss stats
     wins = (traded["ret"] > 0).sum()
     losses = (traded["ret"] < 0).sum()
     win_rate = wins / (wins + losses) if (wins + losses) > 0 else 0
-
-    largest_win = traded["ret"].max()
-    largest_loss = traded["ret"].min()
     avg_win = traded[traded["ret"] > 0]["ret"].mean() if wins > 0 else 0
     avg_loss = traded[traded["ret"] < 0]["ret"].mean() if losses > 0 else 0
-
-    # VaR 95
     var_95 = np.percentile(traded["ret"], 5)
-
-    # Sharpe
     mean_ret = traded["ret"].mean()
     std_ret = traded["ret"].std()
     sharpe = (mean_ret / (std_ret + 1e-12)) * np.sqrt(252 / HORIZON_DAYS)
@@ -223,13 +259,9 @@ def compute_risk_metrics(preds_df):
     return {
         "n_trades": len(traded),
         "final_return": final_return,
-        "max_drawdown": max_dd,
-        "dd_date": dd_date,
         "win_rate": win_rate,
         "n_wins": wins,
         "n_losses": losses,
-        "largest_win": largest_win,
-        "largest_loss": largest_loss,
         "avg_win": avg_win,
         "avg_loss": avg_loss,
         "var_95": var_95,
@@ -240,9 +272,13 @@ def compute_risk_metrics(preds_df):
 risk = compute_risk_metrics(preds)
 edge_pp = (meta["accuracy_all_predictions"] - RANDOM_WALK_BASELINE) * 100
 
-# ─────────────────────────────────────────────────────────────────────
+# Annualized return (for clearer interpretation)
+years = (preds["date"].max() - preds["date"].min()).days / 365.25
+annualized_return = (1 + risk["final_return"]) ** (1 / years) - 1 if years > 0 else 0
+
+# ═════════════════════════════════════════════════════════════════════
 # HEADER
-# ─────────────────────────────────────────────────────────────────────
+# ═════════════════════════════════════════════════════════════════════
 st.markdown(
     '<p class="main-header">🛢️ WTI Crude Oil 5-Day Direction Forecast</p>',
     unsafe_allow_html=True
@@ -254,51 +290,61 @@ st.markdown(
 )
 
 # ═════════════════════════════════════════════════════════════════════
-# SECTION 1: TODAY'S SIGNAL (DECISION SUPPORT)
+# METHODOLOGY BAR — Reviewer requested: forecasting rule visible at top
 # ═════════════════════════════════════════════════════════════════════
 st.markdown(
-    '<p class="section-header">📍 Today\'s Trading Signal</p>',
+    f'<div class="method-bar">'
+    f'<strong>📐 Forecasting rule:</strong> The model predicts the direction of WTI '
+    f'over the next <strong>{HORIZON_DAYS} trading days</strong>. Moves smaller than '
+    f'<strong>±{LABEL_THRESHOLD}%</strong> are treated as neutral and excluded from '
+    f'training and evaluation. A trade signal is issued only when the model\'s confidence '
+    f'is ≥ <strong>{CONF_THRESHOLD:.0%}</strong> and the edge |P(up) − 0.5| is ≥ '
+    f'<strong>{EDGE_THRESHOLD:.0%}</strong>. Trades are <strong>non-overlapping</strong> '
+    f'(a new trade cannot open until the previous one closes after {HORIZON_DAYS} days). '
+    f'A <strong>0.2% round-trip transaction cost</strong> is applied to each trade.'
+    f'</div>',
     unsafe_allow_html=True
 )
 
-# Generate today's signal from the most recent prediction
+# ═════════════════════════════════════════════════════════════════════
+# SECTION 1: TODAY'S LIVE FORECAST
+# ═════════════════════════════════════════════════════════════════════
+st.markdown(
+    '<div class="section-header">📍 Today\'s Forecast'
+    '<span class="badge-live">Live Forecast</span></div>',
+    unsafe_allow_html=True
+)
+
 latest = preds.tail(1).iloc[0]
 prob_up = float(latest["prob_up"])
 confidence = max(prob_up, 1 - prob_up)
 edge = abs(prob_up - 0.5)
 
-# Determine signal type
 if confidence >= CONF_THRESHOLD and edge >= EDGE_THRESHOLD:
     if prob_up >= 0.5:
-        signal = "BUY"
+        signal = "UP"
         signal_class = "signal-hero-buy"
         signal_icon = "▲"
-        action_text = f"Long WTI futures, hold for {HORIZON_DAYS} trading days"
+        action_text = f"Forecast: WTI to rise over the next {HORIZON_DAYS} trading days"
     else:
-        signal = "SELL"
+        signal = "DOWN"
         signal_class = "signal-hero-sell"
         signal_icon = "▼"
-        action_text = f"Short WTI futures, hold for {HORIZON_DAYS} trading days"
+        action_text = f"Forecast: WTI to fall over the next {HORIZON_DAYS} trading days"
 else:
-    signal = "HOLD"
+    signal = "NEUTRAL"
     signal_class = "signal-hero-hold"
     signal_icon = "—"
-    action_text = "No trade — model confidence below threshold"
+    action_text = "No directional forecast — model confidence below trade threshold"
 
-# Suggested target/stop based on historical average win/loss
-suggested_target = abs(risk["avg_win"]) * 100
-suggested_stop = abs(risk["avg_loss"]) * 100
-
-# Date for the signal (next business day after the latest data point)
 signal_date = pd.bdate_range(start=latest["date"] + timedelta(days=1), periods=1)[0]
 
-# Hero card
 col_hero, col_details = st.columns([2, 1])
 
 with col_hero:
     st.markdown(
         f'<div class="{signal_class}">'
-        f'<div class="signal-label">Recommendation for {signal_date.strftime("%A, %d %b %Y")}</div>'
+        f'<div class="signal-label">Forecast for {signal_date.strftime("%A, %d %b %Y")}</div>'
         f'<div class="signal-action">{signal_icon} {signal}</div>'
         f'<div class="signal-detail">{action_text}</div>'
         f'</div>',
@@ -308,190 +354,119 @@ with col_hero:
 with col_details:
     st.markdown("**Model output**")
     st.markdown(f"- **P(up)** = `{prob_up:.4f}`")
-    st.markdown(f"- **Confidence** = `{confidence*100:.2f}%`  "
-                f"({'✓ above' if confidence >= CONF_THRESHOLD else '✗ below'} "
-                f"{CONF_THRESHOLD:.0%} threshold)")
-    st.markdown(f"- **Edge** = `{edge:+.4f}`  "
-                f"({'✓ above' if edge >= EDGE_THRESHOLD else '✗ below'} "
-                f"{EDGE_THRESHOLD:.0%} threshold)")
+    st.markdown(f"- **Confidence** = `{confidence*100:.2f}%` "
+                f"({'✓' if confidence >= CONF_THRESHOLD else '✗'} {CONF_THRESHOLD:.0%} threshold)")
+    st.markdown(f"- **Edge** = `{edge:+.4f}` "
+                f"({'✓' if edge >= EDGE_THRESHOLD else '✗'} {EDGE_THRESHOLD:.0%} threshold)")
     st.markdown(f"- **Horizon**: {HORIZON_DAYS} trading days")
 
-# Position sizing calculator (if a trade is recommended)
-if signal != "HOLD":
-    st.markdown("##### 💼 Position Sizing Calculator")
-    col1, col2, col3 = st.columns([1.5, 1, 1])
-    with col1:
-        portfolio_size = st.number_input(
-            "Portfolio size (USD)",
-            min_value=1000, max_value=10000000,
-            value=10000, step=1000, format="%d",
-            help="Total capital available for trading"
-        )
-    with col2:
-        risk_pct = st.select_slider(
-            "Risk per trade",
-            options=[1.0, 1.5, 2.0, 2.5, 3.0, 5.0],
-            value=2.0,
-            format_func=lambda x: f"{x:.1f}%",
-            help="Maximum portfolio % at risk per trade (Kelly-conservative: 1-2%)"
-        )
-    with col3:
-        position_size = portfolio_size * (risk_pct / 100) / (abs(risk["avg_loss"]) + 1e-6)
-        st.metric(
-            "Suggested position",
-            f"${position_size:,.0f}",
-            f"~{(position_size/portfolio_size)*100:.1f}% of portfolio",
-            delta_color="off",
-        )
+# ─── "What's driving this signal?" panel (reviewer requested) ────────
+st.markdown("##### 🔍 What's driving this forecast?")
 
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("Suggested target", f"+{suggested_target:.2f}%",
-                  "based on historical avg win", delta_color="off")
-    with col2:
-        st.metric("Suggested stop loss", f"−{suggested_stop:.2f}%",
-                  "based on historical avg loss", delta_color="off")
-    with col3:
-        rr_ratio = suggested_target / suggested_stop if suggested_stop > 0 else 0
-        st.metric("Risk/Reward ratio", f"1 : {rr_ratio:.2f}",
-                  "target ÷ stop", delta_color="off")
+# Compute simple signal drivers from recent data
+recent_preds_for_drivers = preds.tail(20)
+recent_avg_prob = recent_preds_for_drivers["prob_up"].mean()
+prob_trend = "rising" if prob_up > recent_avg_prob else "falling"
 
+col1, col2, col3 = st.columns(3)
+with col1:
     st.markdown(
-        '<p class="footer-note">⚠️ Suggestions are based on historical model performance. '
-        'Past performance does not guarantee future results. Always apply your own risk management.</p>',
+        f'<div class="driver-card">'
+        f'<div class="driver-label">📊 Technical signal</div>'
+        f'<div class="driver-value">Probability is <strong>{prob_trend}</strong> '
+        f'relative to the recent 20-day average of {recent_avg_prob:.3f}</div>'
+        f'</div>',
         unsafe_allow_html=True
     )
+with col2:
+    st.markdown(
+        f'<div class="driver-card">'
+        f'<div class="driver-label">💭 Fear & Greed Index</div>'
+        f'<div class="driver-value">3 features (raw, 3-day smoothed, 5-day change) '
+        f'contribute to the model output</div>'
+        f'</div>',
+        unsafe_allow_html=True
+    )
+with col3:
+    st.markdown(
+        f'<div class="driver-card">'
+        f'<div class="driver-label">📰 News sentiment (CoT GPT)</div>'
+        f'<div class="driver-value">5 sentiment dimensions extracted from recent '
+        f'WTI-related financial news</div>'
+        f'</div>',
+        unsafe_allow_html=True
+    )
+
+st.markdown(
+    '<p class="footer-note">This dashboard presents a research-stage forecasting model. '
+    'It is not financial advice. Historical backtest performance does not guarantee future results.</p>',
+    unsafe_allow_html=True
+)
 
 st.markdown("---")
 
 # ═════════════════════════════════════════════════════════════════════
-# SECTION 2: HEADLINE KPIs (existing — kept)
+# SECTION 2: BACKTEST PERFORMANCE (clearly separated from live forecast)
 # ═════════════════════════════════════════════════════════════════════
+st.markdown(
+    '<div class="section-header">📊 Backtest Performance'
+    '<span class="badge-backtest">Historical Backtest</span></div>',
+    unsafe_allow_html=True
+)
+
 col1, col2, col3, col4 = st.columns(4)
+
 with col1:
     st.metric("Accuracy", f"{meta['accuracy_all_predictions']*100:.2f}%",
               f"{edge_pp:+.2f} pp vs random walk")
+    st.markdown(
+        '<div class="metric-def">Directional accuracy on active, non-neutral '
+        'backtest predictions.</div>',
+        unsafe_allow_html=True
+    )
+
 with col2:
-    st.metric("Total Return", f"{risk['final_return']*100:+.2f}%",
-              f"{risk['n_trades']} trades")
+    st.metric("Cumulative Return", f"{risk['final_return']*100:+.2f}%",
+              f"~{annualized_return*100:+.1f}% annualized")
+    st.markdown(
+        '<div class="metric-def">Compound return from non-overlapping 5-day trades, '
+        'net of 0.2% round-trip cost.</div>',
+        unsafe_allow_html=True
+    )
+
 with col3:
     st.metric("Sharpe Ratio", f"{risk['sharpe']:.3f}",
               "annualized", delta_color="off")
+    st.markdown(
+        '<div class="metric-def">Computed from realized 5-day trade returns; '
+        'annualized using √(252/5).</div>',
+        unsafe_allow_html=True
+    )
+
 with col4:
-    st.metric("Win Rate", f"{risk['win_rate']*100:.2f}%",
-              f"{risk['n_wins']} wins / {risk['n_losses']} losses",
+    st.metric("Active Trades", f"{risk['n_trades']}",
+              f"of {meta['n_predictions']:,} forecasts",
               delta_color="off")
-
-st.markdown("---")
-
-# ═════════════════════════════════════════════════════════════════════
-# SECTION 3: RISK METRICS (NEW — for decision support)
-# ═════════════════════════════════════════════════════════════════════
-st.markdown(
-    '<p class="section-header">⚠️ Risk Metrics</p>',
-    unsafe_allow_html=True
-)
-st.caption("Historical risk characteristics from the full backtest. "
-           "Use these to size positions and set stops.")
-
-col1, col2, col3, col4 = st.columns(4)
-with col1:
     st.markdown(
-        f'<div class="risk-card">'
-        f'<div class="risk-label">Max Drawdown</div>'
-        f'<div class="risk-value risk-value-red">{risk["max_drawdown"]*100:.2f}%</div>'
-        f'<div style="font-size:0.8rem; color:#6B7280; margin-top:0.3rem;">'
-        f'observed {risk["dd_date"].strftime("%b %Y")}</div>'
-        f'</div>',
-        unsafe_allow_html=True
-    )
-with col2:
-    st.markdown(
-        f'<div class="risk-card">'
-        f'<div class="risk-label">VaR 95%</div>'
-        f'<div class="risk-value risk-value-red">{risk["var_95"]*100:.2f}%</div>'
-        f'<div style="font-size:0.8rem; color:#6B7280; margin-top:0.3rem;">'
-        f'5th percentile of trade returns</div>'
-        f'</div>',
-        unsafe_allow_html=True
-    )
-with col3:
-    st.markdown(
-        f'<div class="risk-card">'
-        f'<div class="risk-label">Largest Loss</div>'
-        f'<div class="risk-value risk-value-red">{risk["largest_loss"]*100:.2f}%</div>'
-        f'<div style="font-size:0.8rem; color:#6B7280; margin-top:0.3rem;">'
-        f'worst single trade observed</div>'
-        f'</div>',
-        unsafe_allow_html=True
-    )
-with col4:
-    st.markdown(
-        f'<div class="risk-card">'
-        f'<div class="risk-label">Largest Win</div>'
-        f'<div class="risk-value risk-value-green">+{risk["largest_win"]*100:.2f}%</div>'
-        f'<div style="font-size:0.8rem; color:#6B7280; margin-top:0.3rem;">'
-        f'best single trade observed</div>'
-        f'</div>',
-        unsafe_allow_html=True
-    )
-
-st.markdown("")
-col1, col2, col3, col4 = st.columns(4)
-with col1:
-    st.markdown(
-        f'<div class="risk-card">'
-        f'<div class="risk-label">Avg Win</div>'
-        f'<div class="risk-value risk-value-green">+{risk["avg_win"]*100:.2f}%</div>'
-        f'<div style="font-size:0.8rem; color:#6B7280; margin-top:0.3rem;">'
-        f'across {risk["n_wins"]} winning trades</div>'
-        f'</div>',
-        unsafe_allow_html=True
-    )
-with col2:
-    st.markdown(
-        f'<div class="risk-card">'
-        f'<div class="risk-label">Avg Loss</div>'
-        f'<div class="risk-value risk-value-red">{risk["avg_loss"]*100:.2f}%</div>'
-        f'<div style="font-size:0.8rem; color:#6B7280; margin-top:0.3rem;">'
-        f'across {risk["n_losses"]} losing trades</div>'
-        f'</div>',
-        unsafe_allow_html=True
-    )
-with col3:
-    win_loss_ratio = abs(risk["avg_win"] / risk["avg_loss"]) if risk["avg_loss"] != 0 else 0
-    st.markdown(
-        f'<div class="risk-card">'
-        f'<div class="risk-label">Win/Loss Ratio</div>'
-        f'<div class="risk-value">{win_loss_ratio:.2f}</div>'
-        f'<div style="font-size:0.8rem; color:#6B7280; margin-top:0.3rem;">'
-        f'avg win ÷ avg loss</div>'
-        f'</div>',
-        unsafe_allow_html=True
-    )
-with col4:
-    expectancy = risk["win_rate"] * risk["avg_win"] + (1 - risk["win_rate"]) * risk["avg_loss"]
-    st.markdown(
-        f'<div class="risk-card">'
-        f'<div class="risk-label">Expectancy/Trade</div>'
-        f'<div class="risk-value">{expectancy*100:+.2f}%</div>'
-        f'<div style="font-size:0.8rem; color:#6B7280; margin-top:0.3rem;">'
-        f'expected value per trade</div>'
-        f'</div>',
+        '<div class="metric-def">Number of trades passing both confidence and '
+        'edge filters.</div>',
         unsafe_allow_html=True
     )
 
 st.markdown("---")
 
 # ═════════════════════════════════════════════════════════════════════
-# SECTION 4: WTI PRICE WITH PREDICTION OUTCOMES (last 3 months — kept)
+# SECTION 3: WTI PRICE WITH PREDICTION OUTCOMES (last 3 months)
 # ═════════════════════════════════════════════════════════════════════
 st.markdown(
-    '<p class="section-header">📈 WTI Price with Prediction Outcomes — Last 3 Months</p>',
+    '<div class="section-header">📈 Prediction Outcomes on WTI Price — Last 3 Months'
+    '<span class="badge-backtest">Historical Backtest</span></div>',
     unsafe_allow_html=True
 )
-st.caption("Each dot represents one model prediction overlaid on the actual WTI price. "
-           "🟢 Green = correct · 🔴 Red = incorrect.")
+st.caption("Each dot represents one model forecast overlaid on the actual WTI price. "
+           "🟢 Green = correctly forecast direction · 🔴 Red = incorrect forecast. "
+           "Dots appear on the date the forecast was issued; the outcome is measured "
+           f"after {HORIZON_DAYS} trading days.")
 
 last_pred_date = preds["date"].max()
 three_months_ago = last_pred_date - pd.DateOffset(months=3)
@@ -573,37 +548,36 @@ else:
 st.markdown("---")
 
 # ═════════════════════════════════════════════════════════════════════
-# SECTION 5: RECENT TRADES TABLE (NEW — for decision support)
+# SECTION 4: RECENT TRADE SIGNALS & OUTCOMES
 # ═════════════════════════════════════════════════════════════════════
 st.markdown(
-    '<p class="section-header">📋 Recent Trade Signals & Outcomes</p>',
+    '<div class="section-header">📋 Recent Trade Signals & Outcomes'
+    '<span class="badge-backtest">Historical Backtest</span></div>',
     unsafe_allow_html=True
 )
-st.caption("The most recent 10 actual trade signals from the model. "
-           "Use this to assess the model's recent track record.")
+st.caption("The 10 most recent backtest trades. Each row shows the forecast issued on "
+           "the trade-entry date, the realised market direction after 5 trading days, "
+           "and the realised return.")
 
 recent_trades = preds[preds["traded"]].tail(10).copy().reset_index(drop=True)
-recent_trades = recent_trades.iloc[::-1].reset_index(drop=True)  # newest first
+recent_trades = recent_trades.iloc[::-1].reset_index(drop=True)
 
 display_rows = []
 for _, r in recent_trades.iterrows():
-    signal_str = "🟢 BUY" if r["pred"] == 1 else "🔴 SELL"
-    confidence = max(r["prob_up"], 1 - r["prob_up"])
-    outcome = "✓ Profit" if r["ret"] > 0 else "✗ Loss"
+    signal_str = "🟢 UP" if r["pred"] == 1 else "🔴 DOWN"
+    conf = max(r["prob_up"], 1 - r["prob_up"])
+    outcome = "✓ Correct" if r["pred"] == r["actual"] else "✗ Incorrect"
     display_rows.append({
-        "Date": r["date"].strftime("%Y-%m-%d"),
-        "Signal": signal_str,
-        "Confidence": f"{confidence*100:.1f}%",
-        "Actual move": "↑ Up" if r["actual"] == 1 else "↓ Down",
+        "Forecast date": r["date"].strftime("%Y-%m-%d"),
+        "Forecast": signal_str,
+        "Confidence": f"{conf*100:.1f}%",
+        "Realised move": "↑ Up" if r["actual"] == 1 else "↓ Down",
         "Outcome": outcome,
         "Return": f"{r['ret']*100:+.2f}%",
     })
 
-st.dataframe(
-    pd.DataFrame(display_rows),
-    use_container_width=True,
-    hide_index=True,
-)
+st.dataframe(pd.DataFrame(display_rows),
+             use_container_width=True, hide_index=True)
 
 st.markdown("---")
 
@@ -611,16 +585,18 @@ st.markdown("---")
 # Tabs
 # ═════════════════════════════════════════════════════════════════════
 tab1, tab2, tab3 = st.tabs([
-    "📊 Performance",
+    "📊 Performance Detail",
     "🔬 Methodology",
     "📚 Comparison to Literature",
 ])
 
 # ─────────────────────────────────────────────────────────────────────
-# TAB 1: Performance
+# TAB 1: Performance Detail (cumulative return only — no drawdown)
 # ─────────────────────────────────────────────────────────────────────
 with tab1:
-    st.markdown("### Cumulative Return")
+    st.markdown("### Cumulative Strategy Return")
+    st.caption("Compound return of the 168 non-overlapping trades, net of 0.2% "
+               "round-trip transaction cost.")
 
     eq = risk["equity_curve"]
     fig = go.Figure()
@@ -633,23 +609,6 @@ with tab1:
     ))
     fig.add_hline(y=0, line_color="#6B7280", line_width=1)
 
-    # Mark max drawdown — add as a shape + annotation directly
-    # (avoids a known bug in newer plotly versions with add_vline + annotation_text)
-    dd_date_str = risk["dd_date"].strftime("%Y-%m-%d")
-    fig.add_shape(
-        type="line",
-        x0=dd_date_str, x1=dd_date_str,
-        yref="paper", y0=0, y1=1,
-        line=dict(color="#EF4444", width=1.5, dash="dot"),
-    )
-    fig.add_annotation(
-        x=dd_date_str,
-        yref="paper", y=1.02,
-        text=f"Max DD ({risk['max_drawdown']*100:.1f}%)",
-        showarrow=False,
-        font=dict(color="#EF4444", size=11),
-    )
-
     fig.update_layout(
         height=420, margin=dict(l=20, r=20, t=20, b=20),
         plot_bgcolor="white", paper_bgcolor="white", showlegend=False,
@@ -657,30 +616,27 @@ with tab1:
         xaxis=dict(gridcolor="#F3F4F6"),
     )
     st.plotly_chart(fig, use_container_width=True)
-    st.caption(f"Final return: {risk['final_return']*100:+.2f}% · "
-               f"Max drawdown: {risk['max_drawdown']*100:.2f}% · "
+    st.caption(f"Final return: {risk['final_return']*100:+.2f}% (compound) · "
+               f"Annualized: {annualized_return*100:+.2f}% · "
                f"Sharpe: {risk['sharpe']:.3f}")
 
-    # Drawdown chart
-    st.markdown("### Drawdown Over Time")
-    equity = (1 + eq["ret"]).cumprod()
-    running_max = equity.cummax()
-    drawdown = (equity - running_max) / running_max
-
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(
-        x=eq["date"], y=drawdown * 100,
-        mode="lines", line=dict(color="#DC2626", width=2),
-        fill="tozeroy", fillcolor="rgba(220, 38, 38, 0.15)",
-        hovertemplate="<b>%{x|%Y-%m-%d}</b><br>Drawdown: %{y:.2f}%<extra></extra>",
-    ))
-    fig.update_layout(
-        height=300, margin=dict(l=20, r=20, t=20, b=20),
-        plot_bgcolor="white", paper_bgcolor="white", showlegend=False,
-        yaxis=dict(title="Drawdown (%)", gridcolor="#F3F4F6"),
-        xaxis=dict(gridcolor="#F3F4F6"),
-    )
-    st.plotly_chart(fig, use_container_width=True)
+    st.markdown("---")
+    st.markdown("### Trade Statistics")
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("Win rate", f"{risk['win_rate']*100:.2f}%",
+                  f"{risk['n_wins']} W / {risk['n_losses']} L",
+                  delta_color="off")
+    with col2:
+        st.metric("Avg win", f"+{risk['avg_win']*100:.2f}%",
+                  delta_color="off")
+    with col3:
+        st.metric("Avg loss", f"{risk['avg_loss']*100:.2f}%",
+                  delta_color="off")
+    with col4:
+        wl = abs(risk["avg_win"] / risk["avg_loss"]) if risk["avg_loss"] != 0 else 0
+        st.metric("Win/Loss ratio", f"{wl:.2f}",
+                  "avg win ÷ avg loss", delta_color="off")
 
 # ─────────────────────────────────────────────────────────────────────
 # TAB 2: Methodology
@@ -701,13 +657,13 @@ with tab2:
         - {meta['feature_breakdown']['gpt_sentiment_cot']} Chain-of-Thought GPT sentiment
           dimensions (relevance, polarity, intensity, uncertainty, forwardness)
 
-        **Prediction horizon:** {meta['prediction_horizon_days']} trading days
+        **Forecast horizon:** {meta['prediction_horizon_days']} trading days
 
         **Label definition:** UP if 5-day forward return > {meta['label_threshold_pct']}%,
-        DOWN if < −{meta['label_threshold_pct']}%, neutral otherwise (excluded from training)
+        DOWN if < −{meta['label_threshold_pct']}%, neutral otherwise (excluded from training).
 
         **Validation:** Walk-forward backtest with 30-day step, 5-day purge gap,
-        20% validation slice within each train fold
+        20% validation slice within each train fold.
 
         **Trade filter:**
         - Confidence ≥ {meta['confidence_threshold']:.2f}
@@ -745,8 +701,8 @@ with tab2:
     |---|---|
     | Start date | {meta['data_start']} |
     | End date | {meta['data_end']} |
-    | Total predictions | {meta['n_predictions']:,} |
-    | Trades placed | {meta['n_trades']} ({meta['trade_rate_pct']:.1f}%) |
+    | Total forecasts | {meta['n_predictions']:,} |
+    | Active trades placed | {meta['n_trades']} ({meta['trade_rate_pct']:.1f}%) |
     | Random walk baseline | 50.00% |
     | Edge vs random walk | {edge_pp:+.2f} pp |
     """)
@@ -756,7 +712,8 @@ with tab2:
 # ─────────────────────────────────────────────────────────────────────
 with tab3:
     st.markdown("### Comparison Against Other Models in This Study")
-    st.caption("Source: Comparison table from project document (Table 7)")
+    st.caption("Source: Comparison table from project document (Table 7). "
+               "All accuracies measured on post-2020 active backtest trades.")
 
     comparison_data = [
         {"#": "—", "Model": "Random walk (baseline)", "Training Period": "—",
@@ -808,18 +765,16 @@ with tab3:
         marker_color=colors, text=[f"{v:.2f}%" for v in chart_df["acc_pct"]],
         textposition="outside",
     ))
-    # Random walk reference line — use shape + annotation to avoid plotly bug
+    # Random walk reference line — manual shape + annotation to avoid plotly bug
     fig.add_shape(
-        type="line",
-        x0=50, x1=50,
+        type="line", x0=50, x1=50,
         yref="paper", y0=0, y1=1,
         line=dict(color="#6B7280", width=1.5, dash="dash"),
     )
     fig.add_annotation(
         x=50, yref="paper", y=1.02,
         text="Random walk (50%)",
-        showarrow=False,
-        font=dict(color="#6B7280", size=11),
+        showarrow=False, font=dict(color="#6B7280", size=11),
     )
     fig.update_layout(
         height=500, margin=dict(l=20, r=80, t=40, b=20),
@@ -837,8 +792,8 @@ st.markdown("---")
 st.markdown(
     '<p style="text-align: center; color: #9CA3AF; font-size: 0.85rem;">'
     f'Backtest period: {meta["data_start"]} → {meta["data_end"]} · '
-    f'{meta["n_predictions"]:,} predictions · '
-    f'{meta["n_trades"]} trades · '
+    f'{meta["n_predictions"]:,} forecasts · '
+    f'{meta["n_trades"]} active trades · '
     f'Walk-forward validation</p>',
     unsafe_allow_html=True
 )
