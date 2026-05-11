@@ -633,11 +633,22 @@ with tab1:
     ))
     fig.add_hline(y=0, line_color="#6B7280", line_width=1)
 
-    # Mark max drawdown
-    fig.add_vline(x=risk["dd_date"].strftime("%Y-%m-%d"),
-                  line_dash="dot", line_color="#EF4444",
-                  annotation_text=f"Max DD ({risk['max_drawdown']*100:.1f}%)",
-                  annotation_position="top")
+    # Mark max drawdown — add as a shape + annotation directly
+    # (avoids a known bug in newer plotly versions with add_vline + annotation_text)
+    dd_date_str = risk["dd_date"].strftime("%Y-%m-%d")
+    fig.add_shape(
+        type="line",
+        x0=dd_date_str, x1=dd_date_str,
+        yref="paper", y0=0, y1=1,
+        line=dict(color="#EF4444", width=1.5, dash="dot"),
+    )
+    fig.add_annotation(
+        x=dd_date_str,
+        yref="paper", y=1.02,
+        text=f"Max DD ({risk['max_drawdown']*100:.1f}%)",
+        showarrow=False,
+        font=dict(color="#EF4444", size=11),
+    )
 
     fig.update_layout(
         height=420, margin=dict(l=20, r=20, t=20, b=20),
@@ -797,8 +808,19 @@ with tab3:
         marker_color=colors, text=[f"{v:.2f}%" for v in chart_df["acc_pct"]],
         textposition="outside",
     ))
-    fig.add_vline(x=50, line_dash="dash", line_color="#6B7280",
-                  annotation_text="Random walk (50%)", annotation_position="top")
+    # Random walk reference line — use shape + annotation to avoid plotly bug
+    fig.add_shape(
+        type="line",
+        x0=50, x1=50,
+        yref="paper", y0=0, y1=1,
+        line=dict(color="#6B7280", width=1.5, dash="dash"),
+    )
+    fig.add_annotation(
+        x=50, yref="paper", y=1.02,
+        text="Random walk (50%)",
+        showarrow=False,
+        font=dict(color="#6B7280", size=11),
+    )
     fig.update_layout(
         height=500, margin=dict(l=20, r=80, t=40, b=20),
         plot_bgcolor="white", paper_bgcolor="white",
