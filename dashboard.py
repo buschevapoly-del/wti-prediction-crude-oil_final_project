@@ -29,12 +29,12 @@ st.set_page_config(
 st.markdown("""
 <style>
     .main-header {
-        font-size: 10.8rem;
+        font-size: 6.5rem;
         font-weight: 800;
         color: #0E1117;
-        margin-bottom: 0.4rem;
-        line-height: 1.05;
-        letter-spacing: -0.025em;
+        margin-bottom: 0.5rem;
+        line-height: 1.0;
+        letter-spacing: -0.03em;
     }
     .sub-header {
         font-size: 1.15rem;
@@ -557,18 +557,11 @@ st.dataframe(pd.DataFrame(display_rows),
 
 st.markdown("---")
 
-
-st.markdown("---")
-
 # ═════════════════════════════════════════════════════════════════════
-# SECTION 4: TODAY'S LIVE FORECAST
+# SECTION 4: NEXT 5 TRADING DAYS FORECAST
 # ═════════════════════════════════════════════════════════════════════
-st.markdown(
-    '<div class="section-header">📍 Today\'s Forecast'
-    '<span class="badge-live">Live Forecast</span></div>',
-    unsafe_allow_html=True
-)
 
+# Compute today's forecast values (used by Model Explanation section below)
 latest = preds.tail(1).iloc[0]
 prob_up = float(latest["prob_up"])
 confidence = max(prob_up, 1 - prob_up)
@@ -577,44 +570,10 @@ edge = abs(prob_up - 0.5)
 if confidence >= CONF_THRESHOLD and edge >= EDGE_THRESHOLD:
     if prob_up >= 0.5:
         signal = "UP"
-        signal_class = "signal-hero-buy"
-        signal_icon = "▲"
-        action_text = f"Forecast: WTI to rise over the next {HORIZON_DAYS} trading days"
     else:
         signal = "DOWN"
-        signal_class = "signal-hero-sell"
-        signal_icon = "▼"
-        action_text = f"Forecast: WTI to fall over the next {HORIZON_DAYS} trading days"
 else:
     signal = "NEUTRAL"
-    signal_class = "signal-hero-hold"
-    signal_icon = "—"
-    action_text = "No directional forecast — model confidence below trade threshold"
-
-signal_date = pd.bdate_range(start=latest["date"] + timedelta(days=1), periods=1)[0]
-
-col_hero, col_details = st.columns([2, 1])
-
-with col_hero:
-    st.markdown(
-        f'<div class="{signal_class}">'
-        f'<div class="signal-label">Forecast for {signal_date.strftime("%A, %d %b %Y")}</div>'
-        f'<div class="signal-action">{signal_icon} {signal}</div>'
-        f'<div class="signal-detail">{action_text}</div>'
-        f'</div>',
-        unsafe_allow_html=True
-    )
-
-with col_details:
-    st.markdown("**Model output**")
-    st.markdown(f"- **P(up)** = `{prob_up:.4f}`")
-    st.markdown(f"- **Confidence** = `{confidence*100:.2f}%` "
-                f"({'✓' if confidence >= CONF_THRESHOLD else '✗'} {CONF_THRESHOLD:.0%} threshold)")
-    st.markdown(f"- **Edge** = `{edge:+.4f}` "
-                f"({'✓' if edge >= EDGE_THRESHOLD else '✗'} {EDGE_THRESHOLD:.0%} threshold)")
-    st.markdown(f"- **Horizon**: {HORIZON_DAYS} trading days")
-# ─── Next 5 trading days forecast (reviewer requested) ─
-st.markdown("##### 📅 Next 5 trading days — forecast horizon")
 
 # Use the last 5 model predictions, one per card — each card has its own P(up)
 latest_date = preds["date"].max()
