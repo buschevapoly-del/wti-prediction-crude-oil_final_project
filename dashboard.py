@@ -634,7 +634,8 @@ with tab1:
     fig.add_hline(y=0, line_color="#6B7280", line_width=1)
 
     # Mark max drawdown
-    fig.add_vline(x=risk["dd_date"], line_dash="dot", line_color="#EF4444",
+    fig.add_vline(x=risk["dd_date"].strftime("%Y-%m-%d"),
+                  line_dash="dot", line_color="#EF4444",
                   annotation_text=f"Max DD ({risk['max_drawdown']*100:.1f}%)",
                   annotation_position="top")
 
