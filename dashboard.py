@@ -1,6 +1,6 @@
 """
-WTI Crude Oil 5-Day Direction Forecast — Research Dashboard
-============================================================
+WTI Crude Oil 5-Day Direction Forecast — Dashboard
+==================================================
 LightGBM + Chain-of-Thought GPT Sentiment + Fear & Greed Index
 """
 
@@ -24,7 +24,7 @@ st.set_page_config(
 )
 
 # ─────────────────────────────────────────────────────────────────────
-# CSS
+# CSS — bigger header
 # ─────────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
@@ -39,135 +39,37 @@ st.markdown("""
     .sub-header {
         font-size: 1.15rem;
         color: #6B7280;
-        margin-bottom: 1.4rem;
+        margin-bottom: 2.2rem;
         font-weight: 400;
     }
-
-    /* Methodology bar — always visible at top */
-    .method-bar {
-        background: #F9FAFB;
-        border: 1px solid #E5E7EB;
-        border-left: 4px solid #1E40AF;
-        border-radius: 8px;
-        padding: 1rem 1.4rem;
-        margin-bottom: 1.6rem;
-        font-size: 0.95rem;
-        line-height: 1.55;
-        color: #374151;
-    }
-    .method-bar strong {
-        color: #0E1117;
-    }
-
-    /* Section badges */
-    .badge-backtest {
-        display: inline-block;
-        background: #DBEAFE;
-        color: #1E40AF;
-        padding: 4px 12px;
-        border-radius: 6px;
-        font-size: 0.75rem;
-        font-weight: 600;
-        letter-spacing: 0.05em;
-        text-transform: uppercase;
-        margin-left: 12px;
-        vertical-align: middle;
-    }
-    .badge-live {
-        display: inline-block;
-        background: #DCFCE7;
-        color: #166534;
-        padding: 4px 12px;
-        border-radius: 6px;
-        font-size: 0.75rem;
-        font-weight: 600;
-        letter-spacing: 0.05em;
-        text-transform: uppercase;
-        margin-left: 12px;
-        vertical-align: middle;
-    }
-
-    /* Today's signal card */
-    .signal-hero-buy {
+    .signal-up {
         background: linear-gradient(135deg, #10B981 0%, #059669 100%);
         color: white;
-        padding: 2rem;
-        border-radius: 16px;
-        text-align: center;
-        margin-bottom: 1rem;
-        box-shadow: 0 8px 24px rgba(16, 185, 129, 0.25);
-    }
-    .signal-hero-sell {
-        background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%);
-        color: white;
-        padding: 2rem;
-        border-radius: 16px;
-        text-align: center;
-        margin-bottom: 1rem;
-        box-shadow: 0 8px 24px rgba(239, 68, 68, 0.25);
-    }
-    .signal-hero-hold {
-        background: linear-gradient(135deg, #6B7280 0%, #4B5563 100%);
-        color: white;
-        padding: 2rem;
-        border-radius: 16px;
-        text-align: center;
-        margin-bottom: 1rem;
-        box-shadow: 0 8px 24px rgba(107, 114, 128, 0.25);
-    }
-    .signal-action {
-        font-size: 3rem;
-        font-weight: 800;
-        letter-spacing: 0.05em;
-        margin: 0.5rem 0;
-    }
-    .signal-label {
-        font-size: 1rem;
-        opacity: 0.9;
-        letter-spacing: 0.1em;
-        text-transform: uppercase;
-        font-weight: 500;
-    }
-    .signal-detail {
-        font-size: 1.05rem;
-        opacity: 0.95;
-        margin-top: 0.6rem;
-    }
-
-    /* Metric definition (under KPI cards) */
-    .metric-def {
-        font-size: 0.78rem;
-        color: #6B7280;
-        font-style: italic;
-        margin-top: -0.4rem;
-        margin-bottom: 1rem;
-        line-height: 1.35;
-    }
-
-    /* Driver explanation card */
-    .driver-card {
-        background: #F9FAFB;
-        border: 1px solid #E5E7EB;
-        border-radius: 10px;
         padding: 1rem;
-        margin-bottom: 0.6rem;
-    }
-    .driver-label {
-        font-size: 0.75rem;
-        color: #6B7280;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
+        border-radius: 8px;
+        text-align: center;
         font-weight: 600;
     }
-    .driver-value {
-        font-size: 1rem;
-        color: #0E1117;
-        font-weight: 500;
-        margin-top: 0.3rem;
+    .signal-down {
+        background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%);
+        color: white;
+        padding: 1rem;
+        border-radius: 8px;
+        text-align: center;
+        font-weight: 600;
     }
-
-    /* Tabs */
-    .stTabs [data-baseweb="tab-list"] { gap: 8px; }
+    .signal-neutral {
+        background: #F3F4F6;
+        color: #4B5563;
+        padding: 1rem;
+        border-radius: 8px;
+        text-align: center;
+        font-weight: 500;
+        border: 1px solid #E5E7EB;
+    }
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
+    }
     .stTabs [data-baseweb="tab"] {
         padding: 8px 16px;
         background: #F9FAFB;
@@ -177,20 +79,18 @@ st.markdown("""
         background: #1F2937;
         color: white !important;
     }
-    .section-header {
-        font-size: 1.7rem;
-        font-weight: 700;
-        color: #0E1117;
-        margin-top: 1rem;
-        margin-bottom: 0.4rem;
-        display: flex;
-        align-items: center;
-    }
     .footer-note {
         font-size: 0.85rem;
         color: #6B7280;
         font-style: italic;
         margin-top: 0.5rem;
+    }
+    .section-header {
+        font-size: 1.5rem;
+        font-weight: 600;
+        color: #0E1117;
+        margin-top: 1rem;
+        margin-bottom: 0.5rem;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -208,8 +108,9 @@ def load_data():
     preds = preds.sort_values("date").reset_index(drop=True)
     return meta, preds
 
-@st.cache_data(ttl=3600)
+@st.cache_data(ttl=3600)  # cache 1 hour
 def fetch_wti_prices(start_date, end_date):
+    """Fetch WTI prices via yfinance. Returns DataFrame with date and Close."""
     try:
         import yfinance as yf
         ticker = yf.Ticker("CL=F")
@@ -227,415 +128,82 @@ try:
     meta, preds = load_data()
 except FileNotFoundError:
     st.error(f"⚠️ Output files not found in `{OUT_DIR}/`")
+    st.info("Expected files: `metadata.json` and `predictions.csv`")
     st.stop()
 
-# Constants
+# Random walk 50% baseline used everywhere
 RANDOM_WALK_BASELINE = 0.50
-CONF_THRESHOLD = meta.get("confidence_threshold", 0.52)
-EDGE_THRESHOLD = 0.02
-HORIZON_DAYS = meta.get("prediction_horizon_days", 5)
-LABEL_THRESHOLD = meta.get("label_threshold_pct", 0.30)
+edge_pp = (meta['accuracy_all_predictions'] - RANDOM_WALK_BASELINE) * 100
+edge_traded_pp = (meta['accuracy_traded'] - RANDOM_WALK_BASELINE) * 100
 
 # ─────────────────────────────────────────────────────────────────────
-# Compute risk metrics
+# HEADER (bigger title)
 # ─────────────────────────────────────────────────────────────────────
-@st.cache_data
-def compute_risk_metrics(preds_df):
-    traded = preds_df[preds_df["traded"]].copy().sort_values("date").reset_index(drop=True)
-    if len(traded) == 0:
-        return None
-    traded["cum_ret"] = (1 + traded["ret"]).cumprod() - 1
-    final_return = traded["cum_ret"].iloc[-1]
-    wins = (traded["ret"] > 0).sum()
-    losses = (traded["ret"] < 0).sum()
-    win_rate = wins / (wins + losses) if (wins + losses) > 0 else 0
-    avg_win = traded[traded["ret"] > 0]["ret"].mean() if wins > 0 else 0
-    avg_loss = traded[traded["ret"] < 0]["ret"].mean() if losses > 0 else 0
-    var_95 = np.percentile(traded["ret"], 5)
-    mean_ret = traded["ret"].mean()
-    std_ret = traded["ret"].std()
-    sharpe = (mean_ret / (std_ret + 1e-12)) * np.sqrt(252 / HORIZON_DAYS)
-
-    return {
-        "n_trades": len(traded),
-        "final_return": final_return,
-        "win_rate": win_rate,
-        "n_wins": wins,
-        "n_losses": losses,
-        "avg_win": avg_win,
-        "avg_loss": avg_loss,
-        "var_95": var_95,
-        "sharpe": sharpe,
-        "equity_curve": traded[["date", "ret", "cum_ret"]],
-    }
-
-risk = compute_risk_metrics(preds)
-edge_pp = (meta["accuracy_all_predictions"] - RANDOM_WALK_BASELINE) * 100
-
-# Annualized return (for clearer interpretation)
-years = (preds["date"].max() - preds["date"].min()).days / 365.25
-annualized_return = (1 + risk["final_return"]) ** (1 / years) - 1 if years > 0 else 0
-
-# ═════════════════════════════════════════════════════════════════════
-# HEADER
-# ═════════════════════════════════════════════════════════════════════
 st.markdown(
     '<p class="main-header">🛢️ WTI Crude Oil 5-Day Direction Forecast</p>',
     unsafe_allow_html=True
 )
 st.markdown(
-    f'<p class="sub-header"><strong>Research task:</strong> predicting the direction of WTI '
-    f'crude oil over the next <strong>5 trading days</strong> · '
-    f'LightGBM with Chain-of-Thought GPT sentiment + Fear & Greed Index '
+    f'<p class="sub-header">LightGBM with Chain-of-Thought GPT sentiment + Fear & Greed Index '
     f'· Walk-forward backtest {meta["data_start"]} → {meta["data_end"]}</p>',
     unsafe_allow_html=True
 )
 
-# ═════════════════════════════════════════════════════════════════════
-# METHODOLOGY BAR — Reviewer requested: forecasting rule visible at top
-# ═════════════════════════════════════════════════════════════════════
-st.markdown(
-    f'<div class="method-bar">'
-    f'<strong>📐 Forecasting rule:</strong> The model predicts the direction of WTI '
-    f'over the next <strong>{HORIZON_DAYS} trading days</strong>. Moves smaller than '
-    f'<strong>±{LABEL_THRESHOLD}%</strong> are treated as neutral and excluded from '
-    f'training and evaluation. A trade signal is issued only when the model\'s confidence '
-    f'is ≥ <strong>{CONF_THRESHOLD:.0%}</strong> and the edge |P(up) − 0.5| is ≥ '
-    f'<strong>{EDGE_THRESHOLD:.0%}</strong>. Trades are <strong>non-overlapping</strong> '
-    f'(a new trade cannot open until the previous one closes after {HORIZON_DAYS} days). '
-    f'A <strong>0.2% round-trip transaction cost</strong> is applied to each trade.'
-    f'</div>',
-    unsafe_allow_html=True
-)
-
-# ═════════════════════════════════════════════════════════════════════
-# CURRENT MARKET REGIME — Reviewer requested
-# ═════════════════════════════════════════════════════════════════════
-@st.cache_data(ttl=3600)
-def compute_market_regime(start_date, end_date):
-    """Classify current WTI regime from recent price action."""
-    try:
-        import yfinance as yf
-        hist = yf.Ticker("CL=F").history(start=start_date, end=end_date,
-                                          auto_adjust=False)
-        if hist.empty or len(hist) < 30:
-            return None
-        prices = hist["Close"].dropna()
-        if len(prices) < 30:
-            return None
-        latest = float(prices.iloc[-1])
-        ret_30d = float(prices.iloc[-1] / prices.iloc[-30] - 1)
-        ret_5d = float(prices.iloc[-1] / prices.iloc[-5] - 1) if len(prices) >= 5 else 0
-        vol_30d = float(prices.pct_change().tail(30).std() * np.sqrt(252))
-        ma_200 = float(prices.tail(200).mean()) if len(prices) >= 200 else float(prices.mean())
-        above_ma200 = latest > ma_200
-        # Classify
-        if ret_30d > 0.05 and above_ma200:
-            regime = "Bullish"
-            color = "#10B981"
-        elif ret_30d < -0.05 and not above_ma200:
-            regime = "Bearish"
-            color = "#EF4444"
-        else:
-            regime = "Sideways"
-            color = "#6B7280"
-        return {
-            "regime": regime, "color": color, "latest": latest,
-            "ret_30d": ret_30d, "ret_5d": ret_5d, "vol_30d": vol_30d,
-            "ma_200": ma_200, "above_ma200": above_ma200,
-        }
-    except Exception:
-        return None
-
-regime_data = compute_market_regime(
-    pd.Timestamp.now() - timedelta(days=300),
-    pd.Timestamp.now() + timedelta(days=2),
-)
-
-if regime_data is not None:
-    rc1, rc2, rc3, rc4 = st.columns([1.4, 1, 1, 1])
-    with rc1:
-        st.markdown(
-            f'<div style="background:{regime_data["color"]}15;'
-            f'border:1px solid {regime_data["color"]}40;'
-            f'border-left:5px solid {regime_data["color"]};'
-            f'border-radius:8px;padding:0.9rem 1.1rem;height:100%;'
-            f'display:flex;flex-direction:column;justify-content:center;">'
-            f'<div style="font-size:0.72rem;color:#6B7280;text-transform:uppercase;'
-            f'letter-spacing:0.05em;font-weight:600;">Current WTI regime</div>'
-            f'<div style="font-size:1.6rem;font-weight:700;color:{regime_data["color"]};'
-            f'margin-top:0.2rem;">{regime_data["regime"]}</div>'
-            f'</div>',
-            unsafe_allow_html=True
-        )
-    with rc2:
-        st.metric("WTI price", f"${regime_data['latest']:.2f}",
-                  delta_color="off")
-    with rc3:
-        ret_color = "#10B981" if regime_data["ret_30d"] > 0 else "#EF4444"
-        st.metric("30-day return", f"{regime_data['ret_30d']*100:+.2f}%",
-                  delta_color="off")
-    with rc4:
-        st.metric("30-day volatility", f"{regime_data['vol_30d']*100:.1f}%",
-                  "annualized", delta_color="off")
-    st.markdown("")  # spacer
-
-# ═════════════════════════════════════════════════════════════════════
-# SECTION 1: TODAY'S LIVE FORECAST
-# ═════════════════════════════════════════════════════════════════════
-st.markdown(
-    '<div class="section-header">📍 Today\'s Forecast'
-    '<span class="badge-live">Live Forecast</span></div>',
-    unsafe_allow_html=True
-)
-
-latest = preds.tail(1).iloc[0]
-prob_up = float(latest["prob_up"])
-confidence = max(prob_up, 1 - prob_up)
-edge = abs(prob_up - 0.5)
-
-if confidence >= CONF_THRESHOLD and edge >= EDGE_THRESHOLD:
-    if prob_up >= 0.5:
-        signal = "UP"
-        signal_class = "signal-hero-buy"
-        signal_icon = "▲"
-        action_text = f"Forecast: WTI to rise over the next {HORIZON_DAYS} trading days"
-    else:
-        signal = "DOWN"
-        signal_class = "signal-hero-sell"
-        signal_icon = "▼"
-        action_text = f"Forecast: WTI to fall over the next {HORIZON_DAYS} trading days"
-else:
-    signal = "NEUTRAL"
-    signal_class = "signal-hero-hold"
-    signal_icon = "—"
-    action_text = "No directional forecast — model confidence below trade threshold"
-
-signal_date = pd.bdate_range(start=latest["date"] + timedelta(days=1), periods=1)[0]
-
-col_hero, col_details = st.columns([2, 1])
-
-with col_hero:
-    st.markdown(
-        f'<div class="{signal_class}">'
-        f'<div class="signal-label">Forecast for {signal_date.strftime("%A, %d %b %Y")}</div>'
-        f'<div class="signal-action">{signal_icon} {signal}</div>'
-        f'<div class="signal-detail">{action_text}</div>'
-        f'</div>',
-        unsafe_allow_html=True
-    )
-
-with col_details:
-    st.markdown("**Model output**")
-    st.markdown(f"- **P(up)** = `{prob_up:.4f}`")
-    st.markdown(f"- **Confidence** = `{confidence*100:.2f}%` "
-                f"({'✓' if confidence >= CONF_THRESHOLD else '✗'} {CONF_THRESHOLD:.0%} threshold)")
-    st.markdown(f"- **Edge** = `{edge:+.4f}` "
-                f"({'✓' if edge >= EDGE_THRESHOLD else '✗'} {EDGE_THRESHOLD:.0%} threshold)")
-    st.markdown(f"- **Horizon**: {HORIZON_DAYS} trading days")
-
-# ─── "What's driving this signal?" panel (reviewer requested) ────────
-st.markdown("##### 🔍 What's driving this forecast?")
-
-# Compute simple signal drivers from recent data
-recent_preds_for_drivers = preds.tail(20)
-recent_avg_prob = recent_preds_for_drivers["prob_up"].mean()
-
-# Build plain-English contribution lines based on real signals
-def contribution_text(label, value, threshold_bull, threshold_bear, unit=""):
-    """Return (lean, color, description) tuple."""
-    if value > threshold_bull:
-        return "Bullish", "#10B981", f"{label} = {value:.3f}{unit} (above bullish threshold)"
-    elif value < threshold_bear:
-        return "Bearish", "#EF4444", f"{label} = {value:.3f}{unit} (below bearish threshold)"
-    else:
-        return "Neutral", "#6B7280", f"{label} = {value:.3f}{unit}"
-
-# Driver 1: Technical (using prob_up vs recent average and regime)
-tech_lean = "Bullish" if (regime_data and regime_data["ret_5d"] > 0) else \
-            ("Bearish" if (regime_data and regime_data["ret_5d"] < 0) else "Neutral")
-tech_color = "#10B981" if tech_lean == "Bullish" else ("#EF4444" if tech_lean == "Bearish" else "#6B7280")
-tech_detail = f"5-day return: {regime_data['ret_5d']*100:+.2f}%" if regime_data else "(price data unavailable)"
-
-# Driver 2: F&G — derived from probability trend (we don't have F&G live, so we approximate)
-prob_trend = prob_up - recent_avg_prob
-if prob_trend > 0.01:
-    fg_lean, fg_color = "Bullish", "#10B981"
-    fg_detail = f"Model probability rose {prob_trend*100:+.2f} pp vs 20-day avg"
-elif prob_trend < -0.01:
-    fg_lean, fg_color = "Bearish", "#EF4444"
-    fg_detail = f"Model probability fell {prob_trend*100:+.2f} pp vs 20-day avg"
-else:
-    fg_lean, fg_color = "Neutral", "#6B7280"
-    fg_detail = f"Model probability is stable ({prob_trend*100:+.2f} pp vs 20-day avg)"
-
-# Driver 3: News sentiment — based on edge from neutral
-if prob_up > 0.55:
-    sent_lean, sent_color = "Bullish", "#10B981"
-    sent_detail = f"P(up) = {prob_up:.3f} suggests positive sentiment signal"
-elif prob_up < 0.45:
-    sent_lean, sent_color = "Bearish", "#EF4444"
-    sent_detail = f"P(up) = {prob_up:.3f} suggests negative sentiment signal"
-else:
-    sent_lean, sent_color = "Neutral", "#6B7280"
-    sent_detail = f"P(up) = {prob_up:.3f} is close to neutral 0.50"
-
-def driver_card_html(emoji, label, lean, color, detail):
-    return (
-        f'<div class="driver-card" style="border-left:4px solid {color};">'
-        f'<div class="driver-label">{emoji} {label}</div>'
-        f'<div style="font-size:1.15rem;font-weight:700;color:{color};margin-top:0.3rem;">'
-        f'{lean}</div>'
-        f'<div style="font-size:0.85rem;color:#6B7280;margin-top:0.2rem;">{detail}</div>'
-        f'</div>'
-    )
-
-col1, col2, col3 = st.columns(3)
-with col1:
-    st.markdown(
-        driver_card_html("📊", "Price technicals", tech_lean, tech_color, tech_detail),
-        unsafe_allow_html=True
-    )
-with col2:
-    st.markdown(
-        driver_card_html("💭", "Fear & Greed signal", fg_lean, fg_color, fg_detail),
-        unsafe_allow_html=True
-    )
-with col3:
-    st.markdown(
-        driver_card_html("📰", "News sentiment (CoT GPT)", sent_lean, sent_color, sent_detail),
-        unsafe_allow_html=True
-    )
-
-st.caption("Plain-English interpretation of each input category for today's forecast. "
-           "These are approximations based on observable signals; the model itself integrates "
-           "all 14 features jointly via LightGBM.")
-
-# ─── Next 5 trading days forecast (reviewer requested) ─
-st.markdown("##### 📅 Next 5 trading days — forecast horizon")
-st.caption(
-    f"The model produces a single directional forecast covering the next "
-    f"{HORIZON_DAYS} trading days. Each card below represents one day in that "
-    f"forecast window, with today's forecast applied to the full horizon."
-)
-
-# Use today's forecast (already computed above) for all 5 cards
-latest_date = preds["date"].max()
-next_5_days = pd.bdate_range(start=latest_date + timedelta(days=1), periods=5)
-
-if signal == "UP":
-    badge_class, icon, label = "signal-hero-buy", "▲", "UP"
-elif signal == "DOWN":
-    badge_class, icon, label = "signal-hero-sell", "▼", "DOWN"
-else:
-    badge_class, icon, label = "signal-hero-hold", "—", "NEUTRAL"
-
-cols = st.columns(5)
-for i, (col, day) in enumerate(zip(cols, next_5_days)):
-    day_label = f"Day {i+1}"
-    is_first = (i == 0)
-    first_tag = ('<span style="font-size:0.7rem;background:white;color:#0E1117;'
-                 'padding:2px 8px;border-radius:4px;font-weight:600;">START</span>'
-                 if is_first else "")
-    last_tag = ('<span style="font-size:0.7rem;background:white;color:#0E1117;'
-                'padding:2px 8px;border-radius:4px;font-weight:600;">END</span>'
-                if i == 4 else "")
-    with col:
-        st.markdown(
-            f'<div class="{badge_class}" style="padding:1rem;border-radius:10px;'
-            f'box-shadow:none;margin-bottom:0.5rem;">'
-            f'<div style="font-size:0.72rem;opacity:0.9;text-transform:uppercase;'
-            f'letter-spacing:0.05em;">{day.strftime("%a, %d %b")} &nbsp;{first_tag}{last_tag}</div>'
-            f'<div style="font-size:1.6rem;font-weight:700;margin:0.3rem 0;">'
-            f'{icon} {label}</div>'
-            f'<div style="font-size:0.8rem;opacity:0.9;">{day_label} of 5-day horizon</div>'
-            f'<div style="font-size:0.75rem;opacity:0.8;">P(up) = {prob_up:.3f}</div>'
-            f'</div>',
-            unsafe_allow_html=True
-        )
-
-st.caption(
-    f"⚠️ All five cards show the same forecast because the model outputs one "
-    f"directional prediction covering the entire 5-day window — not five separate "
-    f"daily forecasts. The cards visualize the trading horizon, not five "
-    f"independent predictions."
-)
-
-st.markdown(
-    '<p class="footer-note">This dashboard presents a research-stage forecasting model. '
-    'It is not financial advice. Historical backtest performance does not guarantee future results.</p>',
-    unsafe_allow_html=True
-)
-
-st.markdown("---")
-
-# ═════════════════════════════════════════════════════════════════════
-# SECTION 2: BACKTEST PERFORMANCE (clearly separated from live forecast)
-# ═════════════════════════════════════════════════════════════════════
-st.markdown(
-    '<div class="section-header">📊 Backtest Performance'
-    '<span class="badge-backtest">Historical Backtest</span></div>',
-    unsafe_allow_html=True
-)
-
+# ─────────────────────────────────────────────────────────────────────
+# TOP: Headline KPIs (against random walk 50%)
+# ─────────────────────────────────────────────────────────────────────
 col1, col2, col3, col4 = st.columns(4)
 
 with col1:
-    st.metric("Accuracy", f"{meta['accuracy_all_predictions']*100:.2f}%",
-              f"{edge_pp:+.2f} pp vs random walk")
-    st.markdown(
-        '<div class="metric-def">Directional accuracy on active, non-neutral '
-        'backtest predictions.</div>',
-        unsafe_allow_html=True
+    st.metric(
+        label="Accuracy",
+        value=f"{meta['accuracy_all_predictions']*100:.2f}%",
+        delta=f"{edge_pp:+.2f} pp vs random walk",
     )
 
 with col2:
-    st.metric("Cumulative Return", f"{risk['final_return']*100:+.2f}%",
-              f"~{annualized_return*100:+.1f}% annualized")
-    st.markdown(
-        '<div class="metric-def">Compound return from non-overlapping 5-day trades, '
-        'net of 0.2% round-trip cost.</div>',
-        unsafe_allow_html=True
+    st.metric(
+        label="Total Return",
+        value=f"{meta['total_return']*100:+.2f}%",
+        delta=f"{meta['n_trades']} trades placed",
     )
 
 with col3:
-    st.metric("Sharpe Ratio", f"{risk['sharpe']:.3f}",
-              "annualized", delta_color="off")
-    st.markdown(
-        '<div class="metric-def">Computed from realized 5-day trade returns; '
-        'annualized using √(252/5).</div>',
-        unsafe_allow_html=True
+    st.metric(
+        label="Sharpe Ratio",
+        value=f"{meta['sharpe_annualized']:.3f}",
+        delta="annualized, 5-day horizon",
+        delta_color="off",
     )
 
 with col4:
-    st.metric("Active Trades", f"{risk['n_trades']}",
-              f"of {meta['n_predictions']:,} forecasts",
-              delta_color="off")
-    st.markdown(
-        '<div class="metric-def">Number of trades passing both confidence and '
-        'edge filters.</div>',
-        unsafe_allow_html=True
+    st.metric(
+        label="Predictions",
+        value=f"{meta['n_predictions']:,}",
+        delta=f"{meta['trade_rate_pct']:.1f}% trade rate",
+        delta_color="off",
     )
 
 st.markdown("---")
 
-# ═════════════════════════════════════════════════════════════════════
-# SECTION 3: WTI PRICE WITH PREDICTION OUTCOMES (last 3 months)
-# ═════════════════════════════════════════════════════════════════════
+# ─────────────────────────────────────────────────────────────────────
+# MAIN CHART: WTI Price with prediction outcomes (LAST 3 MONTHS)
+# ─────────────────────────────────────────────────────────────────────
 st.markdown(
-    '<div class="section-header">📈 Prediction Outcomes on WTI Price — Last 3 Months'
-    '<span class="badge-backtest">Historical Backtest</span></div>',
+    '<p class="section-header">📈 WTI Price with Prediction Outcomes — Last 3 Months</p>',
     unsafe_allow_html=True
 )
-st.caption("Each dot represents one model forecast overlaid on the actual WTI price. "
-           "🟢 Green = correctly forecast direction · 🔴 Red = incorrect forecast. "
-           "Dots appear on the date the forecast was issued; the outcome is measured "
-           f"after {HORIZON_DAYS} trading days.")
+st.caption(
+    "Each dot represents one model prediction overlaid on the actual WTI price. "
+    "🟢 Green = correctly predicted direction · 🔴 Red = incorrect prediction."
+)
 
+# Filter predictions to last 3 months from latest prediction date
 last_pred_date = preds["date"].max()
 three_months_ago = last_pred_date - pd.DateOffset(months=3)
 recent_preds = preds[preds["date"] >= three_months_ago].copy()
 
+# Fetch WTI prices for the same window (with small buffer at the end through "today")
 price_start = three_months_ago - timedelta(days=5)
 price_end = max(last_pred_date, pd.Timestamp.now()) + timedelta(days=2)
 
@@ -643,26 +211,51 @@ with st.spinner("Loading WTI price data..."):
     wti_prices = fetch_wti_prices(price_start, price_end)
 
 if wti_prices is None or wti_prices.empty:
-    st.warning("⚠️ Could not fetch WTI price data. Showing predictions without price line.")
+    st.warning(
+        "⚠️ Could not fetch WTI price data from yfinance right now. "
+        "Showing prediction outcomes without the price line."
+    )
+
+    # Fallback: predictions vs probability without price line
     plot_df = recent_preds.copy()
     plot_df["correct"] = plot_df["pred"] == plot_df["actual"]
+
     fig = go.Figure()
     correct = plot_df[plot_df["correct"]]
     incorrect = plot_df[~plot_df["correct"]]
-    fig.add_trace(go.Scatter(x=correct["date"], y=correct["prob_up"],
-                              mode="markers", name="Correct",
-                              marker=dict(size=10, color="#10B981")))
-    fig.add_trace(go.Scatter(x=incorrect["date"], y=incorrect["prob_up"],
-                              mode="markers", name="Incorrect",
-                              marker=dict(size=10, color="#EF4444")))
-    fig.update_layout(height=520, plot_bgcolor="white", paper_bgcolor="white")
+    fig.add_trace(go.Scatter(
+        x=correct["date"], y=correct["prob_up"],
+        mode="markers", name="Correct",
+        marker=dict(size=10, color="#10B981", line=dict(color="white", width=1.5)),
+        hovertemplate="<b>%{x|%Y-%m-%d}</b><br>P(up): %{y:.3f}<br>✓ Correct<extra></extra>",
+    ))
+    fig.add_trace(go.Scatter(
+        x=incorrect["date"], y=incorrect["prob_up"],
+        mode="markers", name="Incorrect",
+        marker=dict(size=10, color="#EF4444", line=dict(color="white", width=1.5)),
+        hovertemplate="<b>%{x|%Y-%m-%d}</b><br>P(up): %{y:.3f}<br>✗ Incorrect<extra></extra>",
+    ))
+    fig.update_layout(
+        height=520,
+        margin=dict(l=20, r=20, t=20, b=20),
+        plot_bgcolor="white",
+        paper_bgcolor="white",
+        yaxis=dict(title="P(up)", gridcolor="#F3F4F6"),
+        xaxis=dict(gridcolor="#F3F4F6"),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+    )
     st.plotly_chart(fig, use_container_width=True)
+
 else:
+    # Merge predictions with prices
     plot_df = recent_preds.copy()
     plot_df["date_only"] = plot_df["date"].dt.normalize()
     wti_prices["date_only"] = wti_prices["date"].dt.normalize()
-    plot_df = plot_df.merge(wti_prices[["date_only", "Close"]],
-                            on="date_only", how="left")
+    plot_df = plot_df.merge(
+        wti_prices[["date_only", "Close"]],
+        on="date_only",
+        how="left"
+    )
     plot_df["correct"] = plot_df["pred"] == plot_df["actual"]
     plot_df = plot_df.dropna(subset=["Close"])
 
@@ -671,194 +264,209 @@ else:
     total_recent = len(plot_df)
     pct_correct = n_correct / total_recent * 100 if total_recent > 0 else 0
 
+    # Build the chart
     fig = go.Figure()
+
+    # WTI price line (background)
     fig.add_trace(go.Scatter(
-        x=wti_prices["date"], y=wti_prices["Close"], mode="lines",
-        name="WTI Price", line=dict(color="#374151", width=2),
+        x=wti_prices["date"],
+        y=wti_prices["Close"],
+        mode="lines",
+        name="WTI Price",
+        line=dict(color="#374151", width=2),
         hovertemplate="<b>%{x|%Y-%m-%d}</b><br>WTI: $%{y:.2f}<extra></extra>",
     ))
+
+    # Correct predictions (green dots)
     correct_df = plot_df[plot_df["correct"]]
     fig.add_trace(go.Scatter(
-        x=correct_df["date"], y=correct_df["Close"], mode="markers",
+        x=correct_df["date"],
+        y=correct_df["Close"],
+        mode="markers",
         name=f"Correct ({n_correct})",
-        marker=dict(size=10, color="#10B981", line=dict(color="white", width=1.5)),
-        hovertemplate="<b>%{x|%Y-%m-%d}</b><br>WTI: $%{y:.2f}<br>✓ Correct<extra></extra>",
+        marker=dict(
+            size=10,
+            color="#10B981",
+            line=dict(color="white", width=1.5),
+            symbol="circle",
+        ),
+        hovertemplate=(
+            "<b>%{x|%Y-%m-%d}</b><br>"
+            "WTI: $%{y:.2f}<br>"
+            "<b style='color:#10B981'>✓ Correct prediction</b><extra></extra>"
+        ),
     ))
+
+    # Incorrect predictions (red dots)
     incorrect_df = plot_df[~plot_df["correct"]]
     fig.add_trace(go.Scatter(
-        x=incorrect_df["date"], y=incorrect_df["Close"], mode="markers",
+        x=incorrect_df["date"],
+        y=incorrect_df["Close"],
+        mode="markers",
         name=f"Incorrect ({n_incorrect})",
-        marker=dict(size=10, color="#EF4444", line=dict(color="white", width=1.5)),
-        hovertemplate="<b>%{x|%Y-%m-%d}</b><br>WTI: $%{y:.2f}<br>✗ Incorrect<extra></extra>",
+        marker=dict(
+            size=10,
+            color="#EF4444",
+            line=dict(color="white", width=1.5),
+            symbol="circle",
+        ),
+        hovertemplate=(
+            "<b>%{x|%Y-%m-%d}</b><br>"
+            "WTI: $%{y:.2f}<br>"
+            "<b style='color:#EF4444'>✗ Incorrect prediction</b><extra></extra>"
+        ),
     ))
+
     fig.update_layout(
-        height=520, margin=dict(l=20, r=20, t=20, b=20),
-        plot_bgcolor="white", paper_bgcolor="white",
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        yaxis=dict(title="WTI Price (USD/barrel)", gridcolor="#F3F4F6"),
-        xaxis=dict(gridcolor="#F3F4F6"),
+        height=520,
+        margin=dict(l=20, r=20, t=20, b=20),
+        plot_bgcolor="white",
+        paper_bgcolor="white",
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1,
+            bgcolor="rgba(255,255,255,0.9)",
+            font=dict(size=12),
+        ),
+        yaxis=dict(
+            title="WTI Price (USD/barrel)",
+            gridcolor="#F3F4F6",
+        ),
+        xaxis=dict(
+            title="",
+            gridcolor="#F3F4F6",
+        ),
+        hovermode="closest",
     )
+
     st.plotly_chart(fig, use_container_width=True)
 
+    # 3 metric cards summarizing the 3-month view
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.metric("Correct (3 months)", f"{n_correct}")
+        st.metric("Correct (last 3 months)", f"{n_correct}", "")
     with col2:
-        st.metric("Incorrect (3 months)", f"{n_incorrect}")
+        st.metric("Incorrect (last 3 months)", f"{n_incorrect}", "")
     with col3:
-        st.metric("3-month accuracy", f"{pct_correct:.2f}%",
-                  f"{pct_correct-50:+.2f} pp vs random walk")
+        edge_3m = pct_correct - 50
+        st.metric(
+            "3-month accuracy",
+            f"{pct_correct:.2f}%",
+            f"{edge_3m:+.2f} pp vs random walk"
+        )
+
+    st.caption(
+        f"Window: {three_months_ago.strftime('%Y-%m-%d')} → "
+        f"{last_pred_date.strftime('%Y-%m-%d')} · "
+        f"Hover over any dot for details."
+    )
 
 st.markdown("---")
 
-# ═════════════════════════════════════════════════════════════════════
-# SECTION 4: RECENT TRADE SIGNALS & OUTCOMES
-# ═════════════════════════════════════════════════════════════════════
-st.markdown(
-    '<div class="section-header">📋 Recent Trade Signals & Outcomes'
-    '<span class="badge-backtest">Historical Backtest</span></div>',
-    unsafe_allow_html=True
-)
-st.caption("The 10 most recent backtest trades. Each row shows the forecast issued on "
-           "the trade-entry date, the realised market direction after 5 trading days, "
-           "and the realised return.")
-
-recent_trades = preds[preds["traded"]].tail(10).copy().reset_index(drop=True)
-recent_trades = recent_trades.iloc[::-1].reset_index(drop=True)
-
-display_rows = []
-for _, r in recent_trades.iterrows():
-    signal_str = "🟢 UP" if r["pred"] == 1 else "🔴 DOWN"
-    conf = max(r["prob_up"], 1 - r["prob_up"])
-    outcome = "✓ Correct" if r["pred"] == r["actual"] else "✗ Incorrect"
-    display_rows.append({
-        "Forecast date": r["date"].strftime("%Y-%m-%d"),
-        "Forecast": signal_str,
-        "Confidence": f"{conf*100:.1f}%",
-        "Realised move": "↑ Up" if r["actual"] == 1 else "↓ Down",
-        "Outcome": outcome,
-        "Return": f"{r['ret']*100:+.2f}%",
-    })
-
-st.dataframe(pd.DataFrame(display_rows),
-             use_container_width=True, hide_index=True)
-
-st.markdown("---")
-
-# ═════════════════════════════════════════════════════════════════════
+# ─────────────────────────────────────────────────────────────────────
 # Tabs
-# ═════════════════════════════════════════════════════════════════════
-tab1, tab2, tab3 = st.tabs([
-    "📊 Performance Detail",
+# ─────────────────────────────────────────────────────────────────────
+tab1, tab2, tab3, tab4 = st.tabs([
+    "📈 Live Forecast",
+    "📊 Performance",
     "🔬 Methodology",
     "📚 Comparison to Literature",
 ])
 
 # ─────────────────────────────────────────────────────────────────────
-# TAB 1: Performance Detail (cumulative return only — no drawdown)
+# TAB 1: Next 5 Days
 # ─────────────────────────────────────────────────────────────────────
 with tab1:
-    st.markdown("### Cumulative Strategy Return")
-    st.caption("Compound return of the 168 non-overlapping trades, net of 0.2% "
-               "round-trip transaction cost.")
+    st.markdown("### Next 5 Trading Days — Direction Forecast")
+    st.caption(
+        "Predictions are generated from the most recent available model output. "
+        "Probability indicates the model's confidence that WTI will move UP "
+        "(>0.30%) over the next 5 trading days."
+    )
 
-    eq = risk["equity_curve"]
+    forecast = preds.tail(5).copy().reset_index(drop=True)
+    last_date = preds["date"].max()
+    forecast_dates = pd.bdate_range(
+        start=last_date + timedelta(days=1),
+        periods=5,
+    )
+
+    cols = st.columns(5)
+    for i, (col, fdate) in enumerate(zip(cols, forecast_dates)):
+        recent = forecast.iloc[i] if i < len(forecast) else forecast.iloc[-1]
+        prob_up = float(recent["prob_up"])
+        signal = "UP" if prob_up >= 0.50 else "DOWN"
+        confidence = max(prob_up, 1 - prob_up)
+
+        with col:
+            st.markdown(f"**{fdate.strftime('%a, %b %d')}**")
+            if signal == "UP" and confidence >= 0.52:
+                st.markdown(
+                    f'<div class="signal-up">▲ UP<br><span style="font-size:0.85rem;font-weight:400;">'
+                    f'P(up) = {prob_up:.3f}</span></div>',
+                    unsafe_allow_html=True
+                )
+            elif signal == "DOWN" and confidence >= 0.52:
+                st.markdown(
+                    f'<div class="signal-down">▼ DOWN<br><span style="font-size:0.85rem;font-weight:400;">'
+                    f'P(up) = {prob_up:.3f}</span></div>',
+                    unsafe_allow_html=True
+                )
+            else:
+                st.markdown(
+                    f'<div class="signal-neutral">— LOW CONFIDENCE<br>'
+                    f'<span style="font-size:0.85rem;">P(up) = {prob_up:.3f}</span></div>',
+                    unsafe_allow_html=True
+                )
+
+    st.markdown(
+        '<p class="footer-note">The model only places a trade when '
+        f'|P(up) − 0.5| ≥ 0.02 AND confidence ≥ '
+        f'{meta["confidence_threshold"]:.2f}.</p>',
+        unsafe_allow_html=True
+    )
+
+# ─────────────────────────────────────────────────────────────────────
+# TAB 2: Performance
+# ─────────────────────────────────────────────────────────────────────
+with tab2:
+    st.markdown("### Cumulative Return")
+
+    traded = preds[preds["traded"]].copy()
+    traded["cumulative_return"] = (1 + traded["ret"]).cumprod() - 1
+
     fig = go.Figure()
     fig.add_trace(go.Scatter(
-        x=eq["date"], y=eq["cum_ret"] * 100,
-        mode="lines", name="Strategy",
+        x=traded["date"],
+        y=traded["cumulative_return"] * 100,
+        mode="lines",
+        name="Strategy",
         line=dict(color="#10B981", width=3),
-        fill="tozeroy", fillcolor="rgba(16, 185, 129, 0.1)",
+        fill="tozeroy",
+        fillcolor="rgba(16, 185, 129, 0.1)",
         hovertemplate="<b>%{x|%Y-%m-%d}</b><br>Cumulative: %{y:+.2f}%<extra></extra>",
     ))
     fig.add_hline(y=0, line_color="#6B7280", line_width=1)
-
     fig.update_layout(
-        height=420, margin=dict(l=20, r=20, t=20, b=20),
-        plot_bgcolor="white", paper_bgcolor="white", showlegend=False,
+        height=400,
+        margin=dict(l=20, r=20, t=20, b=20),
+        plot_bgcolor="white",
+        paper_bgcolor="white",
+        showlegend=False,
         yaxis=dict(title="Cumulative Return (%)", gridcolor="#F3F4F6"),
         xaxis=dict(gridcolor="#F3F4F6"),
     )
     st.plotly_chart(fig, use_container_width=True)
-    st.caption(f"Final return: {risk['final_return']*100:+.2f}% (compound) · "
-               f"Annualized: {annualized_return*100:+.2f}% · "
-               f"Sharpe: {risk['sharpe']:.3f}")
-
-    # ─── Rolling performance chart (reviewer requested) ────────────
-    st.markdown("---")
-    st.markdown("### Rolling Performance Over Time")
-    st.caption("Rolling 60-prediction accuracy of the model. Shows how directional "
-               "performance has varied across different periods of the backtest. "
-               "Values above 50% indicate the model is beating a random walk in that window.")
-
-    WINDOW = 60
-    rolling_df = preds.copy()
-    rolling_df["correct"] = (rolling_df["pred"] == rolling_df["actual"]).astype(int)
-    rolling_df["rolling_acc"] = rolling_df["correct"].rolling(WINDOW, min_periods=WINDOW).mean()
-    rolling_df = rolling_df.dropna(subset=["rolling_acc"])
-
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(
-        x=rolling_df["date"], y=rolling_df["rolling_acc"] * 100,
-        mode="lines", name=f"Rolling {WINDOW}-prediction accuracy",
-        line=dict(color="#3B82F6", width=2.5),
-        hovertemplate="<b>%{x|%Y-%m-%d}</b><br>Rolling accuracy: %{y:.2f}%<extra></extra>",
-    ))
-    # Random walk reference (50%)
-    fig.add_hline(y=50, line_dash="dash", line_color="#6B7280", line_width=1.5)
-    # Overall accuracy reference
-    overall_acc = meta["accuracy_all_predictions"] * 100
-    fig.add_hline(y=overall_acc, line_dash="dot", line_color="#10B981", line_width=1.5)
-
-    fig.add_annotation(
-        x=rolling_df["date"].iloc[-1], y=50,
-        text="Random walk (50%)", showarrow=False,
-        xanchor="right", yanchor="bottom",
-        font=dict(color="#6B7280", size=10),
-        xshift=-5, yshift=3,
-    )
-    fig.add_annotation(
-        x=rolling_df["date"].iloc[-1], y=overall_acc,
-        text=f"Overall accuracy ({overall_acc:.2f}%)", showarrow=False,
-        xanchor="right", yanchor="bottom",
-        font=dict(color="#10B981", size=10),
-        xshift=-5, yshift=3,
-    )
-
-    fig.update_layout(
-        height=380, margin=dict(l=20, r=20, t=20, b=20),
-        plot_bgcolor="white", paper_bgcolor="white", showlegend=False,
-        yaxis=dict(title="Rolling accuracy (%)", gridcolor="#F3F4F6", range=[35, 75]),
-        xaxis=dict(gridcolor="#F3F4F6"),
-    )
-    st.plotly_chart(fig, use_container_width=True)
-    st.caption(f"Window: {WINDOW} predictions · "
-               f"Best window: {rolling_df['rolling_acc'].max()*100:.2f}% · "
-               f"Worst window: {rolling_df['rolling_acc'].min()*100:.2f}%")
-
-    st.markdown("---")
-    st.markdown("### Trade Statistics")
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.metric("Win rate", f"{risk['win_rate']*100:.2f}%",
-                  f"{risk['n_wins']} W / {risk['n_losses']} L",
-                  delta_color="off")
-    with col2:
-        st.metric("Avg win", f"+{risk['avg_win']*100:.2f}%",
-                  delta_color="off")
-    with col3:
-        st.metric("Avg loss", f"{risk['avg_loss']*100:.2f}%",
-                  delta_color="off")
-    with col4:
-        wl = abs(risk["avg_win"] / risk["avg_loss"]) if risk["avg_loss"] != 0 else 0
-        st.metric("Win/Loss ratio", f"{wl:.2f}",
-                  "avg win ÷ avg loss", delta_color="off")
 
 # ─────────────────────────────────────────────────────────────────────
-# TAB 2: Methodology
+# TAB 3: Methodology
 # ─────────────────────────────────────────────────────────────────────
-with tab2:
+with tab3:
     st.markdown("### Model Architecture")
+
     col1, col2 = st.columns([2, 1])
 
     with col1:
@@ -873,13 +481,13 @@ with tab2:
         - {meta['feature_breakdown']['gpt_sentiment_cot']} Chain-of-Thought GPT sentiment
           dimensions (relevance, polarity, intensity, uncertainty, forwardness)
 
-        **Forecast horizon:** {meta['prediction_horizon_days']} trading days
+        **Prediction horizon:** {meta['prediction_horizon_days']} trading days
 
         **Label definition:** UP if 5-day forward return > {meta['label_threshold_pct']}%,
-        DOWN if < −{meta['label_threshold_pct']}%, neutral otherwise (excluded from training).
+        DOWN if < −{meta['label_threshold_pct']}%, neutral otherwise (excluded from training)
 
         **Validation:** Walk-forward backtest with 30-day step, 5-day purge gap,
-        20% validation slice within each train fold.
+        20% validation slice within each train fold
 
         **Trade filter:**
         - Confidence ≥ {meta['confidence_threshold']:.2f}
@@ -899,37 +507,58 @@ with tab2:
             ],
         })
         fig = go.Figure(go.Bar(
-            x=feat_df["Count"], y=feat_df["Group"], orientation="h",
+            x=feat_df["Count"],
+            y=feat_df["Group"],
+            orientation="h",
             marker_color=["#3B82F6", "#F59E0B", "#8B5CF6"],
-            text=feat_df["Count"], textposition="auto",
+            text=feat_df["Count"],
+            textposition="auto",
         ))
         fig.update_layout(
-            height=200, margin=dict(l=20, r=20, t=20, b=20),
-            plot_bgcolor="white", paper_bgcolor="white", showlegend=False,
+            height=200,
+            margin=dict(l=20, r=20, t=20, b=20),
+            plot_bgcolor="white",
+            paper_bgcolor="white",
+            showlegend=False,
             xaxis=dict(showgrid=False, showticklabels=False),
             yaxis=dict(showgrid=False),
         )
         st.plotly_chart(fig, use_container_width=True)
 
-    st.markdown("### Backtest Configuration")
+    st.markdown("### Sentiment Pipeline")
+    st.markdown("""
+    The Chain-of-Thought (CoT) GPT sentiment scoring proceeds in two steps for each
+    oil-related news article:
+
+    1. **Causal linkage classification** — the article is assigned to one of six
+       categories: Supply & Demand, Geopolitics, Macroeconomics, Import & Export,
+       Price Change, or New Oil Discovery.
+    2. **Multi-dimensional scoring** — five dimensions are extracted:
+       *relevance* (0-1), *polarity* (-1 to +1), *intensity* (0-1),
+       *uncertainty* (0-1), *forwardness* (0-1).
+
+    Daily aggregates are formed using relevance-weighted means with exponential
+    decay (3-day half-life) to capture lingering sentiment effects.
+    """)
+
+    st.markdown("### Backtest Window")
     st.markdown(f"""
     | Parameter | Value |
     |---|---|
     | Start date | {meta['data_start']} |
     | End date | {meta['data_end']} |
-    | Total forecasts | {meta['n_predictions']:,} |
-    | Active trades placed | {meta['n_trades']} ({meta['trade_rate_pct']:.1f}%) |
+    | Total predictions | {meta['n_predictions']:,} |
+    | Trades placed | {meta['n_trades']} ({meta['trade_rate_pct']:.1f}%) |
     | Random walk baseline | 50.00% |
     | Edge vs random walk | {edge_pp:+.2f} pp |
     """)
 
 # ─────────────────────────────────────────────────────────────────────
-# TAB 3: Comparison
+# TAB 4: Comparison to Literature (from My_new_version.docx, baseline = 50%)
 # ─────────────────────────────────────────────────────────────────────
-with tab3:
+with tab4:
     st.markdown("### Comparison Against Other Models in This Study")
-    st.caption("Source: Comparison table from project document (Table 7). "
-               "All accuracies measured on post-2020 active backtest trades.")
+    st.caption("Source: Comparison table from project document (Table 7)")
 
     comparison_data = [
         {"#": "—", "Model": "Random walk (baseline)", "Training Period": "—",
@@ -957,6 +586,7 @@ with tab3:
         {"#": "11", "Model": "Pure F&G contrarian signal", "Training Period": "2020–2026",
          "Trades": "211", "Post-2020 Acc.": "54.50%", "Sharpe": "—"},
     ]
+
     comparison_df = pd.DataFrame(comparison_data)
 
     def style_row(row):
@@ -964,8 +594,11 @@ with tab3:
             return ["background-color: #FEF3C7; font-weight: 600;"] * len(row)
         return [""] * len(row)
 
-    st.dataframe(comparison_df.style.apply(style_row, axis=1),
-                 use_container_width=True, hide_index=True)
+    st.dataframe(
+        comparison_df.style.apply(style_row, axis=1),
+        use_container_width=True,
+        hide_index=True,
+    )
     st.caption("★ Best-performing configuration (this dashboard's model)")
 
     st.markdown("---")
@@ -976,26 +609,28 @@ with tab3:
     chart_df = chart_df.sort_values("acc_pct", ascending=True)
 
     colors = ["#F59E0B" if "★" in m else "#9CA3AF" for m in chart_df["Model"]]
+
     fig = go.Figure(go.Bar(
-        x=chart_df["acc_pct"], y=chart_df["Model"], orientation="h",
-        marker_color=colors, text=[f"{v:.2f}%" for v in chart_df["acc_pct"]],
+        x=chart_df["acc_pct"],
+        y=chart_df["Model"],
+        orientation="h",
+        marker_color=colors,
+        text=[f"{v:.2f}%" for v in chart_df["acc_pct"]],
         textposition="outside",
     ))
-    # Random walk reference line — manual shape + annotation to avoid plotly bug
-    fig.add_shape(
-        type="line", x0=50, x1=50,
-        yref="paper", y0=0, y1=1,
-        line=dict(color="#6B7280", width=1.5, dash="dash"),
-    )
-    fig.add_annotation(
-        x=50, yref="paper", y=1.02,
-        text="Random walk (50%)",
-        showarrow=False, font=dict(color="#6B7280", size=11),
+    # Single baseline reference line: random walk at 50%
+    fig.add_vline(
+        x=50, line_dash="dash", line_color="#6B7280",
+        annotation_text="Random walk (50%)",
+        annotation_position="top",
     )
     fig.update_layout(
-        height=500, margin=dict(l=20, r=80, t=40, b=20),
-        plot_bgcolor="white", paper_bgcolor="white",
-        xaxis=dict(title="Post-2020 Accuracy (%)", range=[40, 65], gridcolor="#F3F4F6"),
+        height=500,
+        margin=dict(l=20, r=80, t=40, b=20),
+        plot_bgcolor="white",
+        paper_bgcolor="white",
+        xaxis=dict(title="Post-2020 Accuracy (%)", range=[40, 65],
+                   gridcolor="#F3F4F6"),
         yaxis=dict(title="", showgrid=False),
         showlegend=False,
     )
@@ -1008,8 +643,8 @@ st.markdown("---")
 st.markdown(
     '<p style="text-align: center; color: #9CA3AF; font-size: 0.85rem;">'
     f'Backtest period: {meta["data_start"]} → {meta["data_end"]} · '
-    f'{meta["n_predictions"]:,} forecasts · '
-    f'{meta["n_trades"]} active trades · '
+    f'{meta["n_predictions"]:,} predictions · '
+    f'{meta["n_trades"]} trades · '
     f'Walk-forward validation</p>',
     unsafe_allow_html=True
 )
