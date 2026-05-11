@@ -1,13 +1,21 @@
-[README (3).md](https://github.com/user-attachments/files/27573079/README.3.md)
-# WTI Crude Oil 5-Day Direction Forecast — Dashboard
+[README (4).md](https://github.com/user-attachments/files/27605624/README.4.md)
+# WTI Crude Oil 5-Day Direction Forecast — Decision Support Dashboard
 
-LightGBM with Chain-of-Thought GPT sentiment + Fear & Greed Index features. Walk-forward backtested on 2020–2026 WTI data.
+LightGBM with Chain-of-Thought GPT sentiment + Fear & Greed Index features.
 
-## Result Summary
+## What this dashboard does
 
-- **Accuracy:** 57.24% (random walk baseline: 50.00% — edge: +7.24 pp)
-- **Total return:** +86.13% across 168 trades
-- **Sharpe ratio:** 0.535 (annualized, 5-day horizon)
+Decision-support tool, not just performance reporter. Answers two questions:
+
+1. **What should I do today?** → Today's signal card with BUY/SELL/HOLD, confidence, edge, suggested position size, target, and stop loss.
+2. **Can I trust the model?** → Recent trades table + full risk metrics.
+
+## Headline result
+
+- Accuracy: 57.24% (random walk: 50.00% — edge: +7.24 pp)
+- Total return: +61.12% across 168 trades
+- Sharpe: 0.535
+- Win rate: 53.57%
 
 ## Local development
 
@@ -19,12 +27,9 @@ streamlit run dashboard.py
 ## Files
 
 ```
-.
-├── dashboard.py
-├── requirements.txt
-└── outputs_optuna_ensemble/
-    ├── metadata.json
-    └── predictions.csv
+dashboard.py
+requirements.txt
+outputs_optuna_ensemble/
+  metadata.json
+  predictions.csv
 ```
-
-The dashboard fetches recent WTI price data from yfinance at runtime to overlay prediction outcomes.
