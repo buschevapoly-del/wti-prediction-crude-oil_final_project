@@ -313,43 +313,39 @@ st.markdown(
 # ═════════════════════════════════════════════════════════════════════
 @st.cache_data(ttl=3600)
 def compute_market_regime(start_date, end_date):
-    """Classify current WTI regime from the last 2 weeks (10 trading days) of price action."""
+    """Classify current WTI regime from the last 3 months (~63 trading days) of price action.
+    Uses a 3-month window because the price chart on this dashboard also shows 3 months,
+    so the regime label visually matches what the user sees on the chart."""
     try:
         import yfinance as yf
         hist = yf.Ticker("CL=F").history(start=start_date, end=end_date,
                                           auto_adjust=False)
-        if hist.empty or len(hist) < 10:
+        if hist.empty or len(hist) < 63:
             return None
         prices = hist["Close"].dropna()
-        if len(prices) < 10:
+        if len(prices) < 63:
             return None
         latest = float(prices.iloc[-1])
-        # 2-week (10 trading day) return
-        ret_2w = float(prices.iloc[-1] / prices.iloc[-10] - 1)
-        # 2-week (10 trading day) realized volatility, annualized
-        vol_2w = float(prices.pct_change().tail(10).std() * np.sqrt(252))
+        # 3-month (~63 trading day) return
+        ret_3m = float(prices.iloc[-1] / prices.iloc[-63] - 1)
+        # 3-month volatility, annualized
+        vol_3m = float(prices.pct_change().tail(63).std() * np.sqrt(252))
         # 200-day MA for trend confirmation
         ma_200 = float(prices.tail(200).mean()) if len(prices) >= 200 else float(prices.mean())
         above_ma200 = latest > ma_200
-        # Classify — lower thresholds (±2%) since the window is shorter
-        if ret_2w > 0.02 and above_ma200:
+        # Classify with ±3% thresholds over a 3-month window
+        if ret_3m > 0.03:
             regime = "Bullish"
             color = "#10B981"
-        elif ret_2w < -0.02 and not above_ma200:
+        elif ret_3m < -0.03:
             regime = "Bearish"
-            color = "#EF4444"
-        elif ret_2w > 0.02:
-            regime = "Bullish"  # 2-week up but still below long-term MA
-            color = "#10B981"
-        elif ret_2w < -0.02:
-            regime = "Bearish"  # 2-week down but still above long-term MA
             color = "#EF4444"
         else:
             regime = "Sideways"
             color = "#6B7280"
         return {
             "regime": regime, "color": color, "latest": latest,
-            "ret_2w": ret_2w, "vol_2w": vol_2w,
+            "ret_3m": ret_3m, "vol_3m": vol_3m,
             "ma_200": ma_200, "above_ma200": above_ma200,
         }
     except Exception:
@@ -361,7 +357,7 @@ regime_data = compute_market_regime(
 )
 
 if regime_data is not None:
-    rc1, rc2, rc3, rc4 = st.columns([1.4, 1, 1, 1])
+    rc1, rc2, rc3 = st.columns([1.4, 1, 1])
     with rc1:
         st.markdown(
             f'<div style="background:{regime_data["color"]}15;'
@@ -370,7 +366,7 @@ if regime_data is not None:
             f'border-radius:8px;padding:0.9rem 1.1rem;height:100%;'
             f'display:flex;flex-direction:column;justify-content:center;">'
             f'<div style="font-size:0.72rem;color:#6B7280;text-transform:uppercase;'
-            f'letter-spacing:0.05em;font-weight:600;">WTI regime (last 2 weeks)</div>'
+            f'letter-spacing:0.05em;font-weight:600;">WTI regime (last 3 months)</div>'
             f'<div style="font-size:1.6rem;font-weight:700;color:{regime_data["color"]};'
             f'margin-top:0.2rem;">{regime_data["regime"]}</div>'
             f'</div>',
@@ -380,183 +376,14 @@ if regime_data is not None:
         st.metric("WTI price", f"${regime_data['latest']:.2f}",
                   delta_color="off")
     with rc3:
-        st.metric("2-week return", f"{regime_data['ret_2w']*100:+.2f}%",
-                  delta_color="off")
-    with rc4:
-        st.metric("2-week volatility", f"{regime_data['vol_2w']*100:.1f}%",
+        st.metric("3-month volatility", f"{regime_data['vol_3m']*100:.1f}%",
                   "annualized", delta_color="off")
     st.markdown("")  # spacer
-
-# ═════════════════════════════════════════════════════════════════════
-# SECTION 1: TODAY'S LIVE FORECAST
-# ═════════════════════════════════════════════════════════════════════
-st.markdown(
-    '<div class="section-header">📍 Today\'s Forecast'
-    '<span class="badge-live">Live Forecast</span></div>',
-    unsafe_allow_html=True
-)
-
-latest = preds.tail(1).iloc[0]
-prob_up = float(latest["prob_up"])
-confidence = max(prob_up, 1 - prob_up)
-edge = abs(prob_up - 0.5)
-
-if confidence >= CONF_THRESHOLD and edge >= EDGE_THRESHOLD:
-    if prob_up >= 0.5:
-        signal = "UP"
-        signal_class = "signal-hero-buy"
-        signal_icon = "▲"
-        action_text = f"Forecast: WTI to rise over the next {HORIZON_DAYS} trading days"
-    else:
-        signal = "DOWN"
-        signal_class = "signal-hero-sell"
-        signal_icon = "▼"
-        action_text = f"Forecast: WTI to fall over the next {HORIZON_DAYS} trading days"
-else:
-    signal = "NEUTRAL"
-    signal_class = "signal-hero-hold"
-    signal_icon = "—"
-    action_text = "No directional forecast — model confidence below trade threshold"
-
-signal_date = pd.bdate_range(start=latest["date"] + timedelta(days=1), periods=1)[0]
-
-col_hero, col_details = st.columns([2, 1])
-
-with col_hero:
-    st.markdown(
-        f'<div class="{signal_class}">'
-        f'<div class="signal-label">Forecast for {signal_date.strftime("%A, %d %b %Y")}</div>'
-        f'<div class="signal-action">{signal_icon} {signal}</div>'
-        f'<div class="signal-detail">{action_text}</div>'
-        f'</div>',
-        unsafe_allow_html=True
-    )
-
-with col_details:
-    st.markdown("**Model output**")
-    st.markdown(f"- **P(up)** = `{prob_up:.4f}`")
-    st.markdown(f"- **Confidence** = `{confidence*100:.2f}%` "
-                f"({'✓' if confidence >= CONF_THRESHOLD else '✗'} {CONF_THRESHOLD:.0%} threshold)")
-    st.markdown(f"- **Edge** = `{edge:+.4f}` "
-                f"({'✓' if edge >= EDGE_THRESHOLD else '✗'} {EDGE_THRESHOLD:.0%} threshold)")
-    st.markdown(f"- **Horizon**: {HORIZON_DAYS} trading days")
-
-# ─── "What's driving this signal?" panel (reviewer requested) ────────
-st.markdown("##### 🔍 What's driving this forecast?")
-
-# Compute simple signal drivers from recent data
-recent_preds_for_drivers = preds.tail(20)
-recent_avg_prob = recent_preds_for_drivers["prob_up"].mean()
-
-# Build plain-English contribution lines based on real signals
-def contribution_text(label, value, threshold_bull, threshold_bear, unit=""):
-    """Return (lean, color, description) tuple."""
-    if value > threshold_bull:
-        return "Bullish", "#10B981", f"{label} = {value:.3f}{unit} (above bullish threshold)"
-    elif value < threshold_bear:
-        return "Bearish", "#EF4444", f"{label} = {value:.3f}{unit} (below bearish threshold)"
-    else:
-        return "Neutral", "#6B7280", f"{label} = {value:.3f}{unit}"
-
-# Driver 1: F&G — derived from probability trend (we don't have F&G live, so we approximate)
-prob_trend = prob_up - recent_avg_prob
-if prob_trend > 0.01:
-    fg_lean, fg_color = "Bullish", "#10B981"
-elif prob_trend < -0.01:
-    fg_lean, fg_color = "Bearish", "#EF4444"
-else:
-    fg_lean, fg_color = "Neutral", "#6B7280"
-fg_detail = ""  # detail text removed per request
-
-# Driver 2: News sentiment — based on edge from neutral
-if prob_up > 0.55:
-    sent_lean, sent_color = "Bullish", "#10B981"
-    sent_detail = "Positive sentiment signal"
-elif prob_up < 0.45:
-    sent_lean, sent_color = "Bearish", "#EF4444"
-    sent_detail = "Negative sentiment signal"
-else:
-    sent_lean, sent_color = "Neutral", "#6B7280"
-    sent_detail = "Neutral sentiment signal"
-
-def driver_card_html(emoji, label, lean, color, detail):
-    return (
-        f'<div class="driver-card" style="border-left:4px solid {color};">'
-        f'<div class="driver-label">{emoji} {label}</div>'
-        f'<div style="font-size:1.15rem;font-weight:700;color:{color};margin-top:0.3rem;">'
-        f'{lean}</div>'
-        f'<div style="font-size:0.85rem;color:#6B7280;margin-top:0.2rem;">{detail}</div>'
-        f'</div>'
-    )
-
-col1, col2 = st.columns(2)
-with col1:
-    st.markdown(
-        driver_card_html("💭", "Fear & Greed signal", fg_lean, fg_color, fg_detail),
-        unsafe_allow_html=True
-    )
-with col2:
-    st.markdown(
-        driver_card_html("📰", "News sentiment (CoT GPT)", sent_lean, sent_color, sent_detail),
-        unsafe_allow_html=True
-    )
-
-st.caption("Plain-English interpretation of each input category for today's forecast. "
-           "These are approximations based on observable signals; the model itself integrates "
-           "all 14 features jointly via LightGBM.")
-
-# ─── Next 5 trading days forecast (reviewer requested) ─
-st.markdown("##### 📅 Next 5 trading days — forecast horizon")
-st.caption(
-    f"The model produces a single directional forecast covering the next "
-    f"{HORIZON_DAYS} trading days. Each card below represents one day in that "
-    f"forecast window, with today's forecast applied to the full horizon."
-)
-
-# Use today's forecast (already computed above) for all 5 cards
-latest_date = preds["date"].max()
-next_5_days = pd.bdate_range(start=latest_date + timedelta(days=1), periods=5)
-
-if signal == "UP":
-    badge_class, icon, label = "signal-hero-buy", "▲", "UP"
-elif signal == "DOWN":
-    badge_class, icon, label = "signal-hero-sell", "▼", "DOWN"
-else:
-    badge_class, icon, label = "signal-hero-hold", "—", "NEUTRAL"
-
-cols = st.columns(5)
-for i, (col, day) in enumerate(zip(cols, next_5_days)):
-    day_label = f"Day {i+1}"
-    is_first = (i == 0)
-    first_tag = ('<span style="font-size:0.7rem;background:white;color:#0E1117;'
-                 'padding:2px 8px;border-radius:4px;font-weight:600;">START</span>'
-                 if is_first else "")
-    last_tag = ('<span style="font-size:0.7rem;background:white;color:#0E1117;'
-                'padding:2px 8px;border-radius:4px;font-weight:600;">END</span>'
-                if i == 4 else "")
-    with col:
-        st.markdown(
-            f'<div class="{badge_class}" style="padding:1rem;border-radius:10px;'
-            f'box-shadow:none;margin-bottom:0.5rem;">'
-            f'<div style="font-size:0.72rem;opacity:0.9;text-transform:uppercase;'
-            f'letter-spacing:0.05em;">{day.strftime("%a, %d %b")} &nbsp;{first_tag}{last_tag}</div>'
-            f'<div style="font-size:1.6rem;font-weight:700;margin:0.3rem 0;">'
-            f'{icon} {label}</div>'
-            f'<div style="font-size:0.8rem;opacity:0.9;">{day_label} of 5-day horizon</div>'
-            f'</div>',
-            unsafe_allow_html=True
-        )
-
-st.markdown(
-    '<p class="footer-note">This dashboard presents a research-stage forecasting model. '
-    'It is not financial advice. Historical backtest performance does not guarantee future results.</p>',
-    unsafe_allow_html=True
-)
 
 st.markdown("---")
 
 # ═════════════════════════════════════════════════════════════════════
-# SECTION 2: BACKTEST PERFORMANCE (clearly separated from live forecast)
+# SECTION 1: BACKTEST PERFORMANCE
 # ═════════════════════════════════════════════════════════════════════
 st.markdown(
     '<div class="section-header">📊 Backtest Performance'
@@ -603,9 +430,8 @@ with col4:
     )
 
 st.markdown("---")
-
 # ═════════════════════════════════════════════════════════════════════
-# SECTION 3: WTI PRICE WITH PREDICTION OUTCOMES (last 3 months)
+# SECTION 2: WTI PRICE WITH PREDICTION OUTCOMES (last 3 months)
 # ═════════════════════════════════════════════════════════════════════
 st.markdown(
     '<div class="section-header">📈 Prediction Outcomes on WTI Price — Last 3 Months'
@@ -699,9 +525,8 @@ else:
                   f"{pct_correct-50:+.2f} pp vs random walk")
 
 st.markdown("---")
-
 # ═════════════════════════════════════════════════════════════════════
-# SECTION 4: RECENT TRADE SIGNALS & OUTCOMES
+# SECTION 3: RECENT TRADE SIGNALS & OUTCOMES
 # ═════════════════════════════════════════════════════════════════════
 st.markdown(
     '<div class="section-header">📋 Recent Trade Signals & Outcomes'
@@ -731,6 +556,208 @@ for _, r in recent_trades.iterrows():
 
 st.dataframe(pd.DataFrame(display_rows),
              use_container_width=True, hide_index=True)
+
+st.markdown("---")
+
+
+st.markdown("---")
+
+# ═════════════════════════════════════════════════════════════════════
+# SECTION 4: TODAY'S LIVE FORECAST
+# ═════════════════════════════════════════════════════════════════════
+st.markdown(
+    '<div class="section-header">📍 Today\'s Forecast'
+    '<span class="badge-live">Live Forecast</span></div>',
+    unsafe_allow_html=True
+)
+
+latest = preds.tail(1).iloc[0]
+prob_up = float(latest["prob_up"])
+confidence = max(prob_up, 1 - prob_up)
+edge = abs(prob_up - 0.5)
+
+if confidence >= CONF_THRESHOLD and edge >= EDGE_THRESHOLD:
+    if prob_up >= 0.5:
+        signal = "UP"
+        signal_class = "signal-hero-buy"
+        signal_icon = "▲"
+        action_text = f"Forecast: WTI to rise over the next {HORIZON_DAYS} trading days"
+    else:
+        signal = "DOWN"
+        signal_class = "signal-hero-sell"
+        signal_icon = "▼"
+        action_text = f"Forecast: WTI to fall over the next {HORIZON_DAYS} trading days"
+else:
+    signal = "NEUTRAL"
+    signal_class = "signal-hero-hold"
+    signal_icon = "—"
+    action_text = "No directional forecast — model confidence below trade threshold"
+
+signal_date = pd.bdate_range(start=latest["date"] + timedelta(days=1), periods=1)[0]
+
+col_hero, col_details = st.columns([2, 1])
+
+with col_hero:
+    st.markdown(
+        f'<div class="{signal_class}">'
+        f'<div class="signal-label">Forecast for {signal_date.strftime("%A, %d %b %Y")}</div>'
+        f'<div class="signal-action">{signal_icon} {signal}</div>'
+        f'<div class="signal-detail">{action_text}</div>'
+        f'</div>',
+        unsafe_allow_html=True
+    )
+
+with col_details:
+    st.markdown("**Model output**")
+    st.markdown(f"- **P(up)** = `{prob_up:.4f}`")
+    st.markdown(f"- **Confidence** = `{confidence*100:.2f}%` "
+                f"({'✓' if confidence >= CONF_THRESHOLD else '✗'} {CONF_THRESHOLD:.0%} threshold)")
+    st.markdown(f"- **Edge** = `{edge:+.4f}` "
+                f"({'✓' if edge >= EDGE_THRESHOLD else '✗'} {EDGE_THRESHOLD:.0%} threshold)")
+    st.markdown(f"- **Horizon**: {HORIZON_DAYS} trading days")
+# ─── Next 5 trading days forecast (reviewer requested) ─
+st.markdown("##### 📅 Next 5 trading days — forecast horizon")
+st.caption(
+    f"The model produces a single directional forecast covering the next "
+    f"{HORIZON_DAYS} trading days. Each card below represents one day in that "
+    f"forecast window, with today's forecast applied to the full horizon."
+)
+
+# Use today's forecast (already computed above) for all 5 cards
+latest_date = preds["date"].max()
+next_5_days = pd.bdate_range(start=latest_date + timedelta(days=1), periods=5)
+
+if signal == "UP":
+    badge_class, icon, label = "signal-hero-buy", "▲", "UP"
+elif signal == "DOWN":
+    badge_class, icon, label = "signal-hero-sell", "▼", "DOWN"
+else:
+    badge_class, icon, label = "signal-hero-hold", "—", "NEUTRAL"
+
+cols = st.columns(5)
+for i, (col, day) in enumerate(zip(cols, next_5_days)):
+    day_label = f"Day {i+1}"
+    is_first = (i == 0)
+    first_tag = ('<span style="font-size:0.7rem;background:white;color:#0E1117;'
+                 'padding:2px 8px;border-radius:4px;font-weight:600;">START</span>'
+                 if is_first else "")
+    last_tag = ('<span style="font-size:0.7rem;background:white;color:#0E1117;'
+                'padding:2px 8px;border-radius:4px;font-weight:600;">END</span>'
+                if i == 4 else "")
+    with col:
+        st.markdown(
+            f'<div class="{badge_class}" style="padding:1rem;border-radius:10px;'
+            f'box-shadow:none;margin-bottom:0.5rem;">'
+            f'<div style="font-size:0.72rem;opacity:0.9;text-transform:uppercase;'
+            f'letter-spacing:0.05em;">{day.strftime("%a, %d %b")} &nbsp;{first_tag}{last_tag}</div>'
+            f'<div style="font-size:1.6rem;font-weight:700;margin:0.3rem 0;">'
+            f'{icon} {label}</div>'
+            f'<div style="font-size:0.8rem;opacity:0.9;">{day_label} of 5-day horizon</div>'
+            f'</div>',
+            unsafe_allow_html=True
+        )
+
+st.markdown(
+    '<p class="footer-note">This dashboard presents a research-stage forecasting model. '
+    'It is not financial advice. Historical backtest performance does not guarantee future results.</p>',
+    unsafe_allow_html=True
+)
+
+st.markdown("---")
+
+# ═════════════════════════════════════════════════════════════════════
+# SECTION 5: MODEL EXPLANATION
+# ═════════════════════════════════════════════════════════════════════
+st.markdown(
+    '<div class="section-header">🧠 Model Explanation'
+    '<span class="badge-live">Live signals</span></div>',
+    unsafe_allow_html=True
+)
+st.caption("Plain-English interpretation of how each input category is contributing to today's forecast.")
+
+# ─── "What's driving this signal?" panel (reviewer requested) ────────
+st.markdown("##### 🔍 What's driving this forecast?")
+
+# Compute simple signal drivers from recent data
+recent_preds_for_drivers = preds.tail(20)
+recent_avg_prob = recent_preds_for_drivers["prob_up"].mean()
+
+# Build plain-English contribution lines based on real signals
+def contribution_text(label, value, threshold_bull, threshold_bear, unit=""):
+    """Return (lean, color, description) tuple."""
+    if value > threshold_bull:
+        return "Bullish", "#10B981", f"{label} = {value:.3f}{unit} (above bullish threshold)"
+    elif value < threshold_bear:
+        return "Bearish", "#EF4444", f"{label} = {value:.3f}{unit} (below bearish threshold)"
+    else:
+        return "Neutral", "#6B7280", f"{label} = {value:.3f}{unit}"
+
+# Driver 1: Technical indicators — derived from regime data (real WTI price action)
+if regime_data is not None:
+    if regime_data["regime"] == "Bullish":
+        tech_lean, tech_color = "Bullish", "#10B981"
+        tech_detail = f"WTI in bullish regime over 3 months"
+    elif regime_data["regime"] == "Bearish":
+        tech_lean, tech_color = "Bearish", "#EF4444"
+        tech_detail = f"WTI in bearish regime over 3 months"
+    else:
+        tech_lean, tech_color = "Neutral", "#6B7280"
+        tech_detail = f"WTI in sideways regime over 3 months"
+else:
+    tech_lean, tech_color = "Neutral", "#6B7280"
+    tech_detail = "Price data unavailable"
+
+# Driver 2: F&G — derived from probability trend (we don't have F&G live, so we approximate)
+prob_trend = prob_up - recent_avg_prob
+if prob_trend > 0.01:
+    fg_lean, fg_color = "Bullish", "#10B981"
+elif prob_trend < -0.01:
+    fg_lean, fg_color = "Bearish", "#EF4444"
+else:
+    fg_lean, fg_color = "Neutral", "#6B7280"
+fg_detail = ""  # detail text removed per request
+
+# Driver 3: News sentiment — based on edge from neutral
+if prob_up > 0.55:
+    sent_lean, sent_color = "Bullish", "#10B981"
+    sent_detail = "Positive sentiment signal"
+elif prob_up < 0.45:
+    sent_lean, sent_color = "Bearish", "#EF4444"
+    sent_detail = "Negative sentiment signal"
+else:
+    sent_lean, sent_color = "Neutral", "#6B7280"
+    sent_detail = "Neutral sentiment signal"
+
+def driver_card_html(emoji, label, lean, color, detail):
+    return (
+        f'<div class="driver-card" style="border-left:4px solid {color};">'
+        f'<div class="driver-label">{emoji} {label}</div>'
+        f'<div style="font-size:1.15rem;font-weight:700;color:{color};margin-top:0.3rem;">'
+        f'{lean}</div>'
+        f'<div style="font-size:0.85rem;color:#6B7280;margin-top:0.2rem;">{detail}</div>'
+        f'</div>'
+    )
+
+col1, col2, col3 = st.columns(3)
+with col1:
+    st.markdown(
+        driver_card_html("📊", "Technical indicators", tech_lean, tech_color, tech_detail),
+        unsafe_allow_html=True
+    )
+with col2:
+    st.markdown(
+        driver_card_html("💭", "Fear & Greed signal", fg_lean, fg_color, fg_detail),
+        unsafe_allow_html=True
+    )
+with col3:
+    st.markdown(
+        driver_card_html("📰", "News sentiment (CoT GPT)", sent_lean, sent_color, sent_detail),
+        unsafe_allow_html=True
+    )
+
+st.caption("Plain-English interpretation of each input category for today's forecast. "
+           "These are approximations based on observable signals; the model itself integrates "
+           "all 14 features jointly via LightGBM.")
 
 st.markdown("---")
 
