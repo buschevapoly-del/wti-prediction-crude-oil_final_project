@@ -1,4 +1,3 @@
-[README (4).md](https://github.com/user-attachments/files/27605624/README.4.md)
 # WTI Crude Oil 5-Day Direction Forecast — Decision Support Dashboard
 
 LightGBM with Chain-of-Thought GPT sentiment + Fear & Greed Index features.
