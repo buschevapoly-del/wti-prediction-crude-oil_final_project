@@ -357,7 +357,7 @@ regime_data = compute_market_regime(
 )
 
 if regime_data is not None:
-    rc1, rc2, rc3 = st.columns([1.4, 1, 1])
+    rc1, rc2 = st.columns([1.5, 1])
     with rc1:
         st.markdown(
             f'<div style="background:{regime_data["color"]}15;'
@@ -375,9 +375,6 @@ if regime_data is not None:
     with rc2:
         st.metric("WTI price", f"${regime_data['latest']:.2f}",
                   delta_color="off")
-    with rc3:
-        st.metric("3-month volatility", f"{regime_data['vol_3m']*100:.1f}%",
-                  "annualized", delta_color="off")
     st.markdown("")  # spacer
 
 st.markdown("---")
@@ -415,7 +412,8 @@ with col3:
     st.metric("Sharpe Ratio", f"{risk['sharpe']:.3f}",
               "annualized", delta_color="off")
     st.markdown(
-        '<div class="metric-def">Computed from realized 5-day trade returns.</div>',
+        '<div class="metric-def">Annualized assuming ~50 non-overlapping '
+        '5-day trades per year (252 trading days ÷ 5).</div>',
         unsafe_allow_html=True
     )
 
@@ -617,11 +615,6 @@ with col_details:
     st.markdown(f"- **Horizon**: {HORIZON_DAYS} trading days")
 # ─── Next 5 trading days forecast (reviewer requested) ─
 st.markdown("##### 📅 Next 5 trading days — forecast horizon")
-st.caption(
-    f"The model produces a single directional forecast covering the next "
-    f"{HORIZON_DAYS} trading days. Each card below represents one day in that "
-    f"forecast window, with today's forecast applied to the full horizon."
-)
 
 # Use today's forecast (already computed above) for all 5 cards
 latest_date = preds["date"].max()
@@ -796,6 +789,86 @@ with tab1:
     st.caption(f"Final return: {risk['final_return']*100:+.2f}% (compound) · "
                f"Annualized: {annualized_return*100:+.2f}% · "
                f"Sharpe: {risk['sharpe']:.3f}")
+
+    # ─── Confidence vs Hit Rate (calibration plot) ────────────────
+    st.markdown("---")
+    st.markdown("### Confidence vs. Hit Rate (Calibration)")
+    st.caption(
+        "Each bar shows the model's actual accuracy (hit rate) within a confidence band. "
+        "A well-calibrated model has bars roughly matching the band center: predictions "
+        "with 60% confidence should be correct ~60% of the time. Bars above the diagonal "
+        "(grey dashed line) mean the model is under-confident; bars below mean over-confident."
+    )
+
+    # Compute calibration: bin predictions by confidence, measure accuracy in each bin
+    calib = preds.copy()
+    calib["confidence"] = calib["prob_up"].apply(lambda p: max(p, 1 - p))
+    calib["correct"] = (calib["pred"] == calib["actual"]).astype(int)
+
+    # Bin into confidence buckets
+    bins = [0.50, 0.52, 0.54, 0.56, 0.58, 0.60, 0.65, 0.75, 1.00]
+    bin_labels = ["50-52%", "52-54%", "54-56%", "56-58%", "58-60%", "60-65%", "65-75%", "75-100%"]
+    calib["conf_bin"] = pd.cut(calib["confidence"], bins=bins, labels=bin_labels,
+                                include_lowest=True)
+
+    calib_summary = calib.groupby("conf_bin", observed=True).agg(
+        n_predictions=("correct", "count"),
+        hit_rate=("correct", "mean"),
+    ).reset_index()
+    calib_summary = calib_summary[calib_summary["n_predictions"] > 0]
+
+    # Bin centers for the diagonal reference
+    bin_centers = {
+        "50-52%": 51, "52-54%": 53, "54-56%": 55, "56-58%": 57,
+        "58-60%": 59, "60-65%": 62.5, "65-75%": 70, "75-100%": 87.5,
+    }
+    calib_summary["bin_center"] = calib_summary["conf_bin"].astype(str).map(bin_centers)
+    calib_summary["hit_rate_pct"] = calib_summary["hit_rate"] * 100
+
+    # Color bars by whether above (green) or below (red) calibration line
+    bar_colors = [
+        "#10B981" if hr >= bc else "#EF4444"
+        for hr, bc in zip(calib_summary["hit_rate_pct"], calib_summary["bin_center"])
+    ]
+
+    fig_calib = go.Figure()
+    fig_calib.add_trace(go.Bar(
+        x=calib_summary["conf_bin"].astype(str),
+        y=calib_summary["hit_rate_pct"],
+        marker_color=bar_colors,
+        text=[f"{hr:.1f}%<br>(n={n})" for hr, n in
+              zip(calib_summary["hit_rate_pct"], calib_summary["n_predictions"])],
+        textposition="outside",
+        hovertemplate="<b>Confidence: %{x}</b><br>"
+                      "Hit rate: %{y:.2f}%<extra></extra>",
+        showlegend=False,
+    ))
+
+    # Diagonal "perfect calibration" line
+    fig_calib.add_trace(go.Scatter(
+        x=calib_summary["conf_bin"].astype(str),
+        y=calib_summary["bin_center"],
+        mode="lines+markers",
+        line=dict(color="#6B7280", width=2, dash="dash"),
+        marker=dict(size=6, color="#6B7280"),
+        name="Perfect calibration",
+        hovertemplate="Bin center: %{y:.1f}%<extra></extra>",
+    ))
+
+    fig_calib.update_layout(
+        height=420, margin=dict(l=20, r=20, t=20, b=20),
+        plot_bgcolor="white", paper_bgcolor="white",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        yaxis=dict(title="Hit rate (%)", gridcolor="#F3F4F6", range=[35, 90]),
+        xaxis=dict(title="Confidence bucket", gridcolor="#F3F4F6"),
+    )
+    st.plotly_chart(fig_calib, use_container_width=True)
+    st.caption(
+        f"Total predictions: {calib_summary['n_predictions'].sum():,} · "
+        f"Highest-confidence bucket hit rate: "
+        f"{calib_summary.iloc[-1]['hit_rate_pct']:.2f}% "
+        f"(n = {calib_summary.iloc[-1]['n_predictions']})"
+    )
 
 # ─────────────────────────────────────────────────────────────────────
 # TAB 2: Methodology
