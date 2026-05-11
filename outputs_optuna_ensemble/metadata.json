@@ -1,34 +1,32 @@
-# WTI Crude Oil 5-Day Direction Forecast — Decision Support Dashboard
-
-LightGBM with Chain-of-Thought GPT sentiment + Fear & Greed Index features.
-
-## What this dashboard does
-
-Decision-support tool, not just performance reporter. Answers two questions:
-
-1. **What should I do today?** → Today's signal card with BUY/SELL/HOLD, confidence, edge, suggested position size, target, and stop loss.
-2. **Can I trust the model?** → Recent trades table + full risk metrics.
-
-## Headline result
-
-- Accuracy: 57.24% (random walk: 50.00% — edge: +7.24 pp)
-- Total return: +61.12% across 168 trades
-- Sharpe: 0.535
-- Win rate: 53.57%
-
-## Local development
-
-```bash
-pip install -r requirements.txt
-streamlit run dashboard.py
-```
-
-## Files
-
-```
-dashboard.py
-requirements.txt
-outputs_optuna_ensemble/
-  metadata.json
-  predictions.csv
-```
+{
+  "config": "LightGBM + CoT GPT Sentiment + Fear & Greed Index (Post-2020)",
+  "model_type": "LightGBM with 5-model ensemble",
+  "feature_count": 14,
+  "feature_breakdown": {
+    "price_technical": 6,
+    "fear_greed": 3,
+    "gpt_sentiment_cot": 5
+  },
+  "training_window": "2020-01-02 to 2026-05-01",
+  "prediction_horizon_days": 5,
+  "label_threshold_pct": 0.3,
+  "n_predictions": 1527,
+  "n_trades": 168,
+  "trade_rate_pct": 11.00196463654224,
+  "accuracy_all_predictions": 0.5724,
+  "accuracy_traded": 0.5774,
+  "always_up_baseline": 0.5409,
+  "edge_vs_baseline_pp": 3.14,
+  "edge_traded_vs_baseline_pp": 3.65,
+  "up_recall": 0.8191,
+  "down_recall": 0.2703,
+  "total_return": 0.8613,
+  "mean_return_per_trade": 0.005127,
+  "sharpe_annualized": 0.5349,
+  "data_start": "2020-01-02",
+  "data_end": "2026-05-01",
+  "confidence_threshold": 0.52,
+  "round_trip_fee": 0.002,
+  "dai_et_al_benchmark_accuracy": 0.5608,
+  "dai_et_al_benchmark_auc": 0.65
+}
