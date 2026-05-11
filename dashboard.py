@@ -136,12 +136,14 @@ st.markdown("""
 
     /* Metric definition (under KPI cards) */
     .metric-def {
-        font-size: 0.78rem;
-        color: #6B7280;
+        font-size: 0.82rem;
+        color: #4B5563;
         font-style: italic;
-        margin-top: -0.4rem;
-        margin-bottom: 1rem;
-        line-height: 1.35;
+        margin-top: 0.4rem;
+        margin-bottom: 1.2rem;
+        line-height: 1.45;
+        padding-top: 0.3rem;
+        border-top: 1px solid #F3F4F6;
     }
 
     /* Driver explanation card */
@@ -394,8 +396,8 @@ with col1:
     st.metric("Accuracy", f"{meta['accuracy_all_predictions']*100:.2f}%",
               f"{edge_pp:+.2f} pp vs random walk")
     st.markdown(
-        '<div class="metric-def">Directional accuracy on active, non-neutral '
-        'backtest predictions.</div>',
+        '<div class="metric-def">% of correct directional forecasts '
+        'on non-neutral days.</div>',
         unsafe_allow_html=True
     )
 
@@ -403,8 +405,8 @@ with col2:
     st.metric("Cumulative Return", f"{risk['final_return']*100:+.2f}%",
               f"~{annualized_return*100:+.1f}% annualized")
     st.markdown(
-        '<div class="metric-def">Compound return from non-overlapping 5-day trades, '
-        'net of 0.2% round-trip cost.</div>',
+        '<div class="metric-def">Compound return from active trades, '
+        'after 0.2% round-trip cost.</div>',
         unsafe_allow_html=True
     )
 
@@ -412,8 +414,8 @@ with col3:
     st.metric("Sharpe Ratio", f"{risk['sharpe']:.3f}",
               "annualized", delta_color="off")
     st.markdown(
-        '<div class="metric-def">Annualized assuming ~50 non-overlapping '
-        '5-day trades per year (252 trading days ÷ 5).</div>',
+        '<div class="metric-def">Risk-adjusted return; annualized via '
+        '√(252 ÷ 5) for 5-day trades.</div>',
         unsafe_allow_html=True
     )
 
@@ -422,8 +424,8 @@ with col4:
               f"of {meta['n_predictions']:,} forecasts",
               delta_color="off")
     st.markdown(
-        '<div class="metric-def">Number of trades passing both confidence and '
-        'edge filters.</div>',
+        '<div class="metric-def">Forecasts that passed both confidence '
+        'and edge filters.</div>',
         unsafe_allow_html=True
     )
 
@@ -560,6 +562,11 @@ st.markdown("---")
 # ═════════════════════════════════════════════════════════════════════
 # SECTION 4: NEXT 5 TRADING DAYS FORECAST
 # ═════════════════════════════════════════════════════════════════════
+st.markdown(
+    '<div class="section-header">📍 Forecast'
+    '<span class="badge-live">Live Forecast</span></div>',
+    unsafe_allow_html=True
+)
 
 # Compute today's forecast values (used by Model Explanation section below)
 latest = preds.tail(1).iloc[0]
