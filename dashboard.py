@@ -284,7 +284,9 @@ st.markdown(
     unsafe_allow_html=True
 )
 st.markdown(
-    f'<p class="sub-header">LightGBM with Chain-of-Thought GPT sentiment + Fear & Greed Index '
+    f'<p class="sub-header"><strong>Research task:</strong> predicting the direction of WTI '
+    f'crude oil over the next <strong>5 trading days</strong> · '
+    f'LightGBM with Chain-of-Thought GPT sentiment + Fear & Greed Index '
     f'· Walk-forward backtest {meta["data_start"]} → {meta["data_end"]}</p>',
     unsafe_allow_html=True
 )
@@ -509,44 +511,55 @@ st.caption("Plain-English interpretation of each input category for today's fore
            "These are approximations based on observable signals; the model itself integrates "
            "all 14 features jointly via LightGBM.")
 
-# ─── 5-day forecast sequence (reviewer requested: next 5 trading days) ─
-st.markdown("##### 📅 Recent forecast sequence — last 5 trading days")
-st.caption("The model produces one new forecast per trading day. The cards below "
-           "show the five most recent forecasts; the rightmost is today's.")
+# ─── Next 5 trading days forecast (reviewer requested) ─
+st.markdown("##### 📅 Next 5 trading days — forecast horizon")
+st.caption(
+    f"The model produces a single directional forecast covering the next "
+    f"{HORIZON_DAYS} trading days. Each card below represents one day in that "
+    f"forecast window, with today's forecast applied to the full horizon."
+)
 
-recent_5 = preds.tail(5).copy().reset_index(drop=True)
+# Use today's forecast (already computed above) for all 5 cards
+latest_date = preds["date"].max()
+next_5_days = pd.bdate_range(start=latest_date + timedelta(days=1), periods=5)
+
+if signal == "UP":
+    badge_class, icon, label = "signal-hero-buy", "▲", "UP"
+elif signal == "DOWN":
+    badge_class, icon, label = "signal-hero-sell", "▼", "DOWN"
+else:
+    badge_class, icon, label = "signal-hero-hold", "—", "NEUTRAL"
+
 cols = st.columns(5)
-for i, (col, (_, row)) in enumerate(zip(cols, recent_5.iterrows())):
-    p = float(row["prob_up"])
-    c = max(p, 1 - p)
-    e = abs(p - 0.5)
-    if c >= CONF_THRESHOLD and e >= EDGE_THRESHOLD:
-        if p >= 0.5:
-            badge_class, icon, label = "signal-hero-buy", "▲", "UP"
-        else:
-            badge_class, icon, label = "signal-hero-sell", "▼", "DOWN"
-    else:
-        badge_class, icon, label = "signal-hero-hold", "—", "NEUTRAL"
-
-    is_latest = (i == len(recent_5) - 1)
-    latest_tag = "<span style='font-size:0.7rem;background:white;color:#0E1117;" \
-                 "padding:2px 8px;border-radius:4px;font-weight:600;'>TODAY</span>" \
-                 if is_latest else ""
-
+for i, (col, day) in enumerate(zip(cols, next_5_days)):
+    day_label = f"Day {i+1}"
+    is_first = (i == 0)
+    first_tag = ('<span style="font-size:0.7rem;background:white;color:#0E1117;'
+                 'padding:2px 8px;border-radius:4px;font-weight:600;">START</span>'
+                 if is_first else "")
+    last_tag = ('<span style="font-size:0.7rem;background:white;color:#0E1117;'
+                'padding:2px 8px;border-radius:4px;font-weight:600;">END</span>'
+                if i == 4 else "")
     with col:
         st.markdown(
             f'<div class="{badge_class}" style="padding:1rem;border-radius:10px;'
             f'box-shadow:none;margin-bottom:0.5rem;">'
             f'<div style="font-size:0.72rem;opacity:0.9;text-transform:uppercase;'
-            f'letter-spacing:0.05em;">{row["date"].strftime("%a, %d %b")}'
-            f' &nbsp;{latest_tag}</div>'
+            f'letter-spacing:0.05em;">{day.strftime("%a, %d %b")} &nbsp;{first_tag}{last_tag}</div>'
             f'<div style="font-size:1.6rem;font-weight:700;margin:0.3rem 0;">'
             f'{icon} {label}</div>'
-            f'<div style="font-size:0.8rem;opacity:0.9;">P(up) = {p:.3f}</div>'
-            f'<div style="font-size:0.75rem;opacity:0.8;">Conf {c*100:.1f}%</div>'
+            f'<div style="font-size:0.8rem;opacity:0.9;">{day_label} of 5-day horizon</div>'
+            f'<div style="font-size:0.75rem;opacity:0.8;">P(up) = {prob_up:.3f}</div>'
             f'</div>',
             unsafe_allow_html=True
         )
+
+st.caption(
+    f"⚠️ All five cards show the same forecast because the model outputs one "
+    f"directional prediction covering the entire 5-day window — not five separate "
+    f"daily forecasts. The cards visualize the trading horizon, not five "
+    f"independent predictions."
+)
 
 st.markdown(
     '<p class="footer-note">This dashboard presents a research-stage forecasting model. '
