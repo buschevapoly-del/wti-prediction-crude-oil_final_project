@@ -828,24 +828,6 @@ with tab1:
                f"Best window: {rolling_df['rolling_acc'].max()*100:.2f}% · "
                f"Worst window: {rolling_df['rolling_acc'].min()*100:.2f}%")
 
-    st.markdown("---")
-    st.markdown("### Trade Statistics")
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.metric("Win rate", f"{risk['win_rate']*100:.2f}%",
-                  f"{risk['n_wins']} W / {risk['n_losses']} L",
-                  delta_color="off")
-    with col2:
-        st.metric("Avg win", f"+{risk['avg_win']*100:.2f}%",
-                  delta_color="off")
-    with col3:
-        st.metric("Avg loss", f"{risk['avg_loss']*100:.2f}%",
-                  delta_color="off")
-    with col4:
-        wl = abs(risk["avg_win"] / risk["avg_loss"]) if risk["avg_loss"] != 0 else 0
-        st.metric("Win/Loss ratio", f"{wl:.2f}",
-                  "avg win ÷ avg loss", delta_color="off")
-
 # ─────────────────────────────────────────────────────────────────────
 # TAB 2: Methodology
 # ─────────────────────────────────────────────────────────────────────
