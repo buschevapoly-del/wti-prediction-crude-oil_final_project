@@ -29,7 +29,7 @@ st.set_page_config(
 st.markdown("""
 <style>
     .main-header {
-        font-size: 4.8rem;
+        font-size: 10.8rem;
         font-weight: 800;
         color: #0E1117;
         margin-bottom: 0.4rem;
