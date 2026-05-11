@@ -696,16 +696,13 @@ def contribution_text(label, value, threshold_bull, threshold_bear, unit=""):
 if regime_data is not None:
     if regime_data["regime"] == "Bullish":
         tech_lean, tech_color = "Bullish", "#10B981"
-        tech_detail = f"WTI in bullish regime over 3 months"
     elif regime_data["regime"] == "Bearish":
         tech_lean, tech_color = "Bearish", "#EF4444"
-        tech_detail = f"WTI in bearish regime over 3 months"
     else:
         tech_lean, tech_color = "Neutral", "#6B7280"
-        tech_detail = f"WTI in sideways regime over 3 months"
 else:
     tech_lean, tech_color = "Neutral", "#6B7280"
-    tech_detail = "Price data unavailable"
+tech_detail = ""  # detail text removed per request
 
 # Driver 2: F&G — derived from probability trend (we don't have F&G live, so we approximate)
 prob_trend = prob_up - recent_avg_prob
@@ -799,61 +796,6 @@ with tab1:
     st.caption(f"Final return: {risk['final_return']*100:+.2f}% (compound) · "
                f"Annualized: {annualized_return*100:+.2f}% · "
                f"Sharpe: {risk['sharpe']:.3f}")
-
-    # ─── Rolling performance chart (reviewer requested) ────────────
-    st.markdown("---")
-    st.markdown("### Rolling Performance Over Time")
-    st.caption("Rolling 60-prediction accuracy of the model. Shows how directional "
-               "performance has varied across different periods of the backtest. "
-               "Values above 50% indicate the model is beating a random walk in that window.")
-
-    WINDOW = 60
-    rolling_df = preds.copy()
-    rolling_df["correct"] = (rolling_df["pred"] == rolling_df["actual"]).astype(int)
-    rolling_df["rolling_acc"] = rolling_df["correct"].rolling(WINDOW, min_periods=WINDOW).mean()
-    rolling_df = rolling_df.dropna(subset=["rolling_acc"])
-    # Filter to start from 2021 (skip empty space before rolling window has enough data)
-    rolling_df = rolling_df[rolling_df["date"] >= pd.Timestamp("2021-01-01")].reset_index(drop=True)
-
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(
-        x=rolling_df["date"], y=rolling_df["rolling_acc"] * 100,
-        mode="lines", name=f"Rolling {WINDOW}-prediction accuracy",
-        line=dict(color="#3B82F6", width=2.5),
-        hovertemplate="<b>%{x|%Y-%m-%d}</b><br>Rolling accuracy: %{y:.2f}%<extra></extra>",
-    ))
-    # Random walk reference (50%)
-    fig.add_hline(y=50, line_dash="dash", line_color="#6B7280", line_width=1.5)
-    # Overall accuracy reference
-    overall_acc = meta["accuracy_all_predictions"] * 100
-    fig.add_hline(y=overall_acc, line_dash="dot", line_color="#10B981", line_width=1.5)
-
-    fig.add_annotation(
-        x=rolling_df["date"].iloc[-1], y=50,
-        text="Random walk (50%)", showarrow=False,
-        xanchor="right", yanchor="bottom",
-        font=dict(color="#6B7280", size=10),
-        xshift=-5, yshift=3,
-    )
-    fig.add_annotation(
-        x=rolling_df["date"].iloc[-1], y=overall_acc,
-        text=f"Overall accuracy ({overall_acc:.2f}%)", showarrow=False,
-        xanchor="right", yanchor="bottom",
-        font=dict(color="#10B981", size=10),
-        xshift=-5, yshift=3,
-    )
-
-    fig.update_layout(
-        height=380, margin=dict(l=20, r=20, t=20, b=20),
-        plot_bgcolor="white", paper_bgcolor="white", showlegend=False,
-        yaxis=dict(title="Rolling accuracy (%)", gridcolor="#F3F4F6", range=[35, 75]),
-        xaxis=dict(gridcolor="#F3F4F6",
-                   range=["2021-01-01", rolling_df["date"].max().strftime("%Y-%m-%d")]),
-    )
-    st.plotly_chart(fig, use_container_width=True)
-    st.caption(f"Window: {WINDOW} predictions · "
-               f"Best window: {rolling_df['rolling_acc'].max()*100:.2f}% · "
-               f"Worst window: {rolling_df['rolling_acc'].min()*100:.2f}%")
 
 # ─────────────────────────────────────────────────────────────────────
 # TAB 2: Methodology
